@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>감사 열매 농장</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<main class="home">
+  <h1>감사 열매 농장</h1>
+  <p class="lead">소년부 12개 반이 함께하는 감사 농사 게임이에요. 진행자만 이 화면을 써요. 반 선생님은 진행자가 나눠 주는 QR로 들어와요.</p>
+
+  <section class="card">
+    <h2 style="font-size:24px;margin-bottom:12px">진행자로 들어가기</h2>
+    <form id="joinForm">
+      <div class="field"><label for="joinGame">게임 이름</label><input id="joinGame" autocomplete="off" required placeholder="예: deokso-1025"></div>
+      <div class="field"><label for="joinPin">진행자 PIN</label><input id="joinPin" type="password" inputmode="numeric" autocomplete="off" required></div>
+      <button class="btn big" style="width:100%" type="submit">들어가기</button>
+      <p class="error" id="joinErr"></p>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2 style="font-size:24px;margin-bottom:6px">새 게임 만들기</h2>
+    <p class="muted" style="margin:0 0 12px">처음 한 번만 만들어요. 게임 이름과 PIN은 진행자끼리만 알아 두세요.</p>
+    <form id="newForm">
+      <div class="field"><label for="newGame">게임 이름 (영어 소문자·숫자·-)</label><input id="newGame" autocomplete="off" required placeholder="예: deokso-1025"></div>
+      <div class="field"><label for="newPin">진행자 PIN (4~20자)</label><input id="newPin" type="password" autocomplete="off" required minlength="4" maxlength="20"></div>
+      <button class="btn big secondary" style="width:100%" type="submit">새 게임 만들기</button>
+      <p class="error" id="newErr"></p>
+    </form>
+  </section>
+</main>
+<script type="module">
+import { ready, params } from '/js/fb.js';
+import { createGame, claimAdmin, validGameId } from '/js/store.js';
+import { $ } from '/js/ui.js';
+
+const pre = params.get('g');
+if (pre) $('#joinGame').value = pre;
+
+const go = (g) => { location.href = `/control?g=${encodeURIComponent(g)}`; };
+
+$('#joinForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const g = $('#joinGame').value.trim().toLowerCase();
+  const pin = $('#joinPin').value.trim();
+  $('#joinErr').textContent = '';
+  try {
+    const user = await ready();
+    await claimAdmin(g, pin, user.uid);
+    go(g);
+  } catch (err) {
+    console.error(err);
+    $('#joinErr').textContent = '게임 이름이나 PIN이 맞지 않아요.';
+  }
+});
+
+$('#newForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const g = $('#newGame').value.trim().toLowerCase();
+  const pin = $('#newPin').value.trim();
+  $('#newErr').textContent = '';
+  if (!validGameId(g)) {
+    $('#newErr').textContent = '게임 이름은 영어 소문자·숫자·- 로 3~40자예요.';
+    return;
+  }
+  try {
+    const user = await ready();
+    await createGame(g, pin, user.uid);
+    go(g);
+  } catch (err) {
+    console.error(err);
+    $('#newErr').textContent = '만들지 못했어요. 이미 있는 게임 이름일 수 있어요. 위의 "진행자로 들어가기"를 써 보세요.';
+  }
+});
+</script>
+</body>
+</html>

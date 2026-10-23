@@ -1,0 +1,89 @@
+rules_version = '2';
+
+// 감사 열매 농장 보안 규칙
+// - 모든 접속자는 익명 로그인
+// - 진행자: secrets/{게임}의 PIN을 알고 games/{게임}/admins/{uid}를 만든 기기
+// - 반 선생님: 반 토큰을 알아야 제출 문서 ID를 만들 수 있음 (토큰은 keys/ 에만 있고 진행자만 읽음)
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin(g) {
+      return signedIn() && exists(/databases/$(database)/documents/games/$(g)/admins/$(request.auth.uid));
+    }
+
+    // 게임별 진행자 PIN — 아무도 읽을 수 없고, 처음 한 번만 만들 수 있다
+    match /secrets/{g} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['pin'])
+        && request.resource.data.pin is string
+        && request.resource.data.pin.size() >= 4
+        && request.resource.data.pin.size() <= 20;
+      allow read, update, delete: if false;
+    }
+
+    match /games/{g} {
+      allow read: if signedIn();
+      allow create, update: if isAdmin(g);
+      allow delete: if false;
+
+      // PIN이 맞으면 이 기기(uid)를 진행자로 등록
+      match /admins/{uid} {
+        allow get: if signedIn() && request.auth.uid == uid;
+        allow create: if signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['pin'])
+          && request.resource.data.pin == get(/databases/$(database)/documents/secrets/$(g)).data.pin;
+        allow list, update, delete: if false;
+      }
+
+      match /classes/{c} {
+        allow read: if signedIn();
+        allow write: if isAdmin(g);
+      }
+
+      match /keys/{c} {
+        allow read, write: if isAdmin(g);
+      }
+
+      match /snaps/{s} {
+        allow read, write: if isAdmin(g);
+      }
+
+      // 제출 문서 ID = {라운드}-{종류}-{반}-{반 토큰}
+      // 토큰을 아는 반 선생님만 자기 반 문서를 만들고, ID를 아는 사람만 그 문서를 읽을 수 있다
+      match /subs/{sid} {
+        allow get: if signedIn();
+        allow list: if isAdmin(g);
+        allow delete: if isAdmin(g);
+        allow create, update: if validSub(g, sid);
+      }
+
+      function validSub(g, sid) {
+        let d = request.resource.data;
+        let game = get(/databases/$(database)/documents/games/$(g)).data;
+        let token = get(/databases/$(database)/documents/games/$(g)/keys/$(d.classId)).data.token;
+        let cls = get(/databases/$(database)/documents/games/$(g)/classes/$(d.classId)).data;
+        return signedIn()
+          && d.keys().hasOnly(['classId', 'round', 'kind', 'value', 'at'])
+          && d.round is int
+          && sid == string(d.round) + '-' + d.kind + '-' + d.classId + '-' + token
+          && d.round == game.round
+          && (
+            (d.kind == 'quiz' && game.phase == 'quiz_open'
+              && d.value in ['O', 'X', '1', '2', '3', '4'])
+            ||
+            (d.kind == 'store' && game.phase == 'store_open'
+              && d.value is int && d.value >= 0 && d.value <= cls.fruit)
+          );
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

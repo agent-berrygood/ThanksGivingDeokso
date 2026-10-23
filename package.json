@@ -1,0 +1,11 @@
+{
+  "name": "thanksgiving-deokso",
+  "private": true,
+  "type": "module",
+  "description": "소년부 감사 열매 농장 — 12개 반 대항 실시간 레크 웹앱",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "emulators": "firebase emulators:start --only firestore,auth,hosting",
+    "deploy": "firebase deploy --only firestore:rules,hosting"
+  }
+}

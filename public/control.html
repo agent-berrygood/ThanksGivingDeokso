@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>진행자 컨트롤 · 감사 열매 농장</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+</head>
+<body>
+<main class="control" id="app">
+  <header>
+    <div>
+      <h1>감사 열매 농장 · 진행자</h1>
+      <div class="muted">게임 <b id="gameName"></b></div>
+    </div>
+    <div class="row">
+      <button class="btn" id="openDisplay" type="button">출력 창 열기</button>
+      <button class="btn ghost" id="resetBtn" type="button">처음부터 다시</button>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="status-line"><span id="roundLabel"></span> <span id="phaseLabel"></span> <span class="timer" id="timer" style="font-size:22px;margin-left:8px"></span></div>
+  </div>
+
+  <div class="grid-2">
+    <section class="card next-box">
+      <h2 style="font-size:22px">지금 할 일</h2>
+      <div class="preview" id="preview"></div>
+      <button class="btn big" id="nextBtn" type="button"></button>
+      <div class="row">
+        <button class="btn secondary" id="undoBtn" type="button">직전 단계로 되돌리기</button>
+        <button class="btn secondary" id="plusBtn" type="button">시간 +10초</button>
+      </div>
+      <p class="error" id="ctlErr"></p>
+    </section>
+
+    <section class="card">
+      <h2 style="font-size:22px;margin-bottom:8px">반별 현황 <span class="pill" id="subCount"></span></h2>
+      <table class="ctl">
+        <thead><tr><th>반</th><th class="num">열매</th><th class="num">나눈 합</th><th>이번 제출</th><th>조정</th></tr></thead>
+        <tbody id="classRows"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <details class="card">
+    <summary>문제와 인카운터 미리 보기</summary>
+    <div class="grid-2" style="margin-top:12px">
+      <div id="qList"></div>
+      <div id="encList"></div>
+    </div>
+  </details>
+
+  <details class="card" id="qrPanel">
+    <summary>반 선생님 QR (12장)</summary>
+    <p class="noprint muted">반 선생님 휴대폰으로 찍으면 바로 그 반 화면이 열려요. 로그인은 필요 없어요.</p>
+    <div class="row noprint" style="margin-bottom:12px"><button class="btn secondary" id="printQr" type="button">QR 인쇄</button></div>
+    <div class="qr-grid" id="qrGrid"></div>
+  </details>
+</main>
+<script type="module" src="/js/control.js"></script>
+</body>
+</html>
