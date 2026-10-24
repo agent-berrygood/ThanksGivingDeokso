@@ -175,6 +175,14 @@ table.demo th { font-family: var(--display); font-weight: 400; color: var(--mute
 .joint-goal b { color: var(--accent); font-weight: 400; }
 .joint-goal.win { background: #DCFCE7; }
 .joint-goal.win b { color: var(--good); }
+.paths { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2vw; }
+.path { border: 3px solid var(--line); border-radius: 2.4vh; padding: 5vh 2vw; text-align: center; }
+.path .tag { font-family: var(--display); font-size: 2.6vh; color: #fff; background: var(--accent); border-radius: 999px; padding: 0.5vh 1.4vw; }
+.path h3 { font-size: 6vh; margin-top: 2.4vh; }
+.path p { font-size: 3.6vh; line-height: 1.5; margin: 1.6vh 0 0; }
+.path b { color: var(--accent); }
+.what-if { font-family: var(--display); font-size: 3.4vh; margin: 0; }
+.what-if b { color: var(--accent); font-weight: 400; }
 .lesson { font-size: 3vh; line-height: 1.5; border-left: 1vh solid var(--accent); background: var(--accent-soft); padding: 1.4vh 1.6vw; border-radius: 1vh; }
 
 /* ===== 반 선생님 (휴대폰) ===== */

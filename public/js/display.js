@@ -169,19 +169,17 @@ function tutorialHtml(step, reveal) {
             reveal ? `<td>+${r.perClass[id].share}개</td><td><b>${r.perClass[id].after}개</b></td>` : ''}</tr>`).join('')}</tbody>
         </table>
         ${reveal
-          ? `<div class="calc">날씨: <b>${esc(e.name)}</b> → 창고 ${r.X}개 × ${e.mult} = ${r.pool}개 ÷ 4 = 반마다 <b>${r.share}</b>개</div>
-             <p class="sub">하나도 안 낸 '다 반'이 이번엔 제일 많아요. 그런데 모두가 이렇게 하면 어떻게 될까요?</p>`
+          ? `<div class="calc">날씨: <b>${esc(e.name)}</b> → 창고 ${r.X}개 × ${e.mult} = ${r.pool}개 ÷ 4 = 반마다 <b>${r.share}</b>개</div>`
           : '<p class="sub">이번 날씨는 무엇일까요?</p>'}`;
     }
-    case 'danger':
-      return `${head}
-        <p class="sub">아무 반도 나누지 않으면 창고가 비어서 불어날 열매가 없어요. 게다가 <span class="warn">꽃샘추위·폭염·태풍·메뚜기 떼·까마귀 떼</span>가 오면 남긴 열매가 줄어들어요.</p>
-        <div class="calc">미리 2,000번 해 보니: 아무도 안 나누면 마지막에 반마다 열매가 <b>2~5개</b>밖에 남지 않았어요.</div>
-        <p class="sub">모든 반이 매번 절반씩만 나눠도 가장 적은 반조차 <b>100개가 훨씬 넘었어요</b>.</p>`;
     case 'joint':
       return `${head}
-        <div class="joint-goal">모든 반이 각각 열매 <b>${JOINT_GOAL}개 이상</b>이면 → <b>모두 공동우승!</b></div>
-        <p class="sub">우리 반만 1등을 할 수도 있지만, 함께 나누면 모두가 우승할 수 있어요. 어떤 길을 고를지 반끼리 의논해 보세요.</p>`;
+        <div class="paths">
+          <div class="path"><span class="tag">방법 1</span><h3>모두 함께 공동우승</h3>
+            <p>모든 반이 각각 열매 <b>${JOINT_GOAL}개 이상</b></p></div>
+          <div class="path"><span class="tag">방법 2</span><h3>우리 반만 1등</h3>
+            <p>열매가 <b>가장 많은 반</b></p></div>
+        </div>`;
     case 'ready':
       return `<div class="lobby">
           <div class="lobby-text">${head}
@@ -269,7 +267,11 @@ function resultHtml() {
   const list = activeClasses();
   const a = awards(list);
   const sim = simulateAllShare(game.history || [], activeIds());
+  const simLow = Math.min(...Object.values(sim.fruits));
   const max = Math.max(a.total, sim.total, 1);
+  const what = a.joint
+    ? `함께 나눠서 모두 우승했어요! 매번 모두 다 나눴다면 가장 적은 반도 <b>${simLow}개</b>까지 넘쳤을 거예요.`
+    : `여러분이 모두 함께 나눴다면 가장 적은 반도 <b>${simLow}개</b>!${simLow >= a.goal ? ' 열매가 넘쳐서 <b>모두 공동우승</b>이었을 거예요.' : ''}`;
   const w = a.winner;
   const gradesPresent = GRADES.filter((gr) => a.gradeWinners[gr.key]);
   const banner = a.joint
@@ -292,9 +294,9 @@ function resultHtml() {
     </div>
     ${lesson}
     <div class="compare">
-      <p class="sub" style="margin:0">같은 문제·같은 날씨에서 모든 반이 매번 열매를 모두 창고에 넣었다면?</p>
+      <p class="what-if">${what}</p>
       <div class="bar" style="width:${(a.total / max) * 100}%">우리가 모은 열매 ${a.total}개</div>
-      <div class="bar alt" style="width:${(sim.total / max) * 100}%">모두 다 나눴다면 ${sim.total}개</div>
+      <div class="bar alt" style="width:${(sim.total / max) * 100}%">모두 함께 나눴다면 ${sim.total}개</div>
     </div>
     <div class="verse">범사에 감사하라 · 데살로니가전서 5:18</div>`;
 }

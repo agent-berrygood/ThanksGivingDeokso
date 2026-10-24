@@ -75,8 +75,7 @@ export const TUTORIAL = [
   { key: 'weather', title: '계절마다 날씨가 바뀌어요' },
   { key: 'practiceQ', title: '연습 문제', reveal: true },
   { key: 'practiceRound', title: '연습 라운드', reveal: true },
-  { key: 'danger', title: '아끼기만 하면?' },
-  { key: 'joint', title: '모두 함께 이기는 방법' },
+  { key: 'joint', title: '이기는 방법은 두 가지' },
   { key: 'ready', title: '준비됐나요?' },
 ];
 
