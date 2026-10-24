@@ -1,6 +1,6 @@
 // Firestore 읽기·쓰기 — 진행자 동작과 공용 구독
 import {
-  db, doc, collection, getDoc, getDocs, setDoc, writeBatch, query, orderBy, limit, onSnapshot, serverTimestamp,
+  db, doc, collection, getDoc, getDocs, setDoc, deleteDoc, writeBatch, query, orderBy, limit, onSnapshot, serverTimestamp,
 } from './fb.js';
 import { CLASSES, START_FRUIT, QUIZ_SECONDS, STORE_SECONDS } from './data.js';
 import {
@@ -10,30 +10,22 @@ import {
 export const refs = (g) => ({
   game: doc(db, 'games', g),
   classes: collection(db, 'games', g, 'classes'),
-  keys: collection(db, 'games', g, 'keys'),
+  joinKey: doc(db, 'games', g, 'keys', 'join'),
   subs: collection(db, 'games', g, 'subs'),
   snaps: collection(db, 'games', g, 'snaps'),
-  secret: doc(db, 'secrets', g),
 });
 
-export const subId = (round, kind, classId, token) => `${round}-${kind}-${classId}-${token}`;
+export const claimsRef = (g, key) => collection(db, 'games', g, 'joins', key, 'claims');
+export const subId = (round, kind, classId) => `${round}_${kind}_${classId}`;
 
-export function validGameId(g) {
-  return /^[a-z0-9][a-z0-9-]{2,39}$/.test(g || '');
-}
+export const joinUrl = (g, key) => `${location.origin}/t?s=${encodeURIComponent(g)}&k=${encodeURIComponent(key)}`;
 
-// 이 기기를 진행자로 등록 (이미 등록돼 있으면 그대로)
-export async function claimAdmin(g, pin, uid) {
-  const ref = doc(db, 'games', g, 'admins', uid);
-  try {
-    const s = await getDoc(ref);
-    if (s.exists()) return true;
-  } catch (e) { /* 없으면 아래에서 생성 */ }
-  await setDoc(ref, { pin: String(pin) });
-  return true;
-}
+const LAST = 'farm:lastSession';
+export const rememberSession = (g) => { try { localStorage.setItem(LAST, g); } catch (e) { /* 저장 불가 */ } };
+export const lastSession = () => { try { return localStorage.getItem(LAST) || ''; } catch (e) { return ''; } };
 
 export async function isAdmin(g, uid) {
+  if (!g) return false;
   try {
     return (await getDoc(doc(db, 'games', g, 'admins', uid))).exists();
   } catch (e) {
@@ -41,19 +33,24 @@ export async function isAdmin(g, uid) {
   }
 }
 
-// 새 게임: PIN 저장 → 진행자 등록 → 초기화
-export async function createGame(g, pin, uid) {
-  await setDoc(refs(g).secret, { pin: String(pin) });
-  await claimAdmin(g, pin, uid);
+// 새 세션: 이 기기를 진행자로 등록하고 초기화
+export async function createSession(uid) {
+  const g = randomToken(8);
+  await setDoc(doc(db, 'games', g, 'admins', uid), { at: serverTimestamp() });
   await resetGame(g);
+  rememberSession(g);
+  return g;
 }
 
-// 게임 초기화. 반 토큰(QR)은 유지한다.
+// 게임 초기화. 참여 키(QR)와 반 선택은 유지한다.
 export async function resetGame(g) {
   const r = refs(g);
-  const [keySnap, subSnap, snapSnap] = await Promise.all([getDocs(r.keys), getDocs(r.subs), getDocs(r.snaps)]);
-  const tokens = Object.fromEntries(keySnap.docs.map((d) => [d.id, d.data().token]));
-  // 지난 판의 제출·되돌리기 기록 삭제 (400개씩)
+  let key = null;
+  try {
+    const k = await getDoc(r.joinKey);
+    if (k.exists()) key = k.data().token;
+  } catch (e) { /* 새 세션 */ }
+  const [subSnap, snapSnap] = await Promise.all([getDocs(r.subs), getDocs(r.snaps)]);
   const stale = [...subSnap.docs, ...snapSnap.docs];
   for (let i = 0; i < stale.length; i += 400) {
     const b = writeBatch(db);
@@ -62,20 +59,32 @@ export async function resetGame(g) {
   }
   const b = writeBatch(db);
   b.set(r.game, {
-    phase: 'lobby', round: 0, deadlineAt: null, history: [], last: null, updatedAt: serverTimestamp(),
+    phase: 'lobby', round: 0, deadlineAt: null, history: [], last: null, showQr: false, updatedAt: serverTimestamp(),
   });
   for (const c of CLASSES) {
     b.set(doc(r.classes, c.id), {
       grade: c.grade, no: c.no, name: c.name, order: c.order, fruit: START_FRUIT, shared: 0, correct: 0,
     });
-    b.set(doc(r.keys, c.id), { token: tokens[c.id] || randomToken() });
   }
+  if (!key) b.set(r.joinKey, { token: randomToken(12) });
   await b.commit();
 }
 
-export async function loadKeys(g) {
-  const s = await getDocs(refs(g).keys);
-  return Object.fromEntries(s.docs.map((d) => [d.id, d.data().token]));
+export async function loadJoinKey(g) {
+  return (await getDoc(refs(g).joinKey)).data()?.token || '';
+}
+
+// 반 선택 (선생님) / 해제 (진행자 또는 본인)
+export function claimClass(g, key, classId, uid) {
+  return setDoc(doc(claimsRef(g, key), classId), { uid, at: serverTimestamp() });
+}
+export function releaseClass(g, key, classId) {
+  return deleteDoc(doc(claimsRef(g, key), classId));
+}
+export function watchClaims(g, key, cb, onError) {
+  return onSnapshot(claimsRef(g, key), (s) => {
+    cb(Object.fromEntries(s.docs.map((d) => [d.id, d.data()])));
+  }, onError);
 }
 
 const toMap = (snap) => Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]));
@@ -101,7 +110,7 @@ export async function advance(g, rng = Math.random) {
   b.set(doc(r.snaps, String(Date.now()).padStart(15, '0')), { game, classes, seq: Date.now(), at: serverTimestamp() });
 
   const now = Date.now();
-  const update = { phase: next.phase, round: next.round, updatedAt: serverTimestamp(), deadlineAt: null };
+  const update = { phase: next.phase, round: next.round, updatedAt: serverTimestamp(), deadlineAt: null, showQr: false };
   const history = [...(game.history || [])];
   const entry = (round) => {
     let h = history.find((x) => x.round === round);
@@ -137,7 +146,7 @@ export async function advance(g, rng = Math.random) {
     update.last = game.last || null;
   }
 
-  if (next.phase === 'store_locked') {
+  if (next.phase === 'store_locked' || next.phase === 'result') {
     update.last = game.last || null;
   }
 
@@ -153,10 +162,6 @@ export async function advance(g, rng = Math.random) {
     Object.assign(entry(game.round), { enc: enc.key, X: res.X, share: res.share });
     update.history = history;
     update.last = { store: res };
-  }
-
-  if (next.phase === 'result') {
-    update.last = game.last || null;
   }
 
   b.update(r.game, update);
@@ -179,7 +184,6 @@ export async function undo(g) {
   return true;
 }
 
-// 진행자가 반 열매를 직접 조정
 export async function adjustFruit(g, classId, fruit) {
   const b = writeBatch(db);
   b.update(doc(refs(g).classes, classId), { fruit: Math.max(0, Math.floor(fruit)) });
@@ -190,6 +194,12 @@ export async function extendDeadline(g, currentDeadline, seconds) {
   const base = Math.max(Date.now(), currentDeadline || 0);
   const b = writeBatch(db);
   b.update(refs(g).game, { deadlineAt: base + seconds * 1000 });
+  await b.commit();
+}
+
+export async function setShowQr(g, on) {
+  const b = writeBatch(db);
+  b.update(refs(g).game, { showQr: !!on });
   await b.commit();
 }
 
@@ -206,4 +216,13 @@ export function watch(g, { onGame, onClasses, onSubs, onError }) {
   }
   if (onSubs) offs.push(onSnapshot(r.subs, (s) => onSubs(s.docs.map((d) => d.data())), onError));
   return () => offs.forEach((f) => f());
+}
+
+// QR SVG (qrcode-generator 전역 사용)
+export function qrSvg(text, cell = 6) {
+  if (!window.qrcode) return '';
+  const qr = window.qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  return qr.createSvgTag({ cellSize: cell, margin: 2, scalable: true });
 }

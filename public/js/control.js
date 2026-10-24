@@ -1,23 +1,28 @@
 import { ready, params } from './fb.js';
-import { CLASSES, QUESTIONS, ENCOUNTERS, SEASONS } from './data.js';
+import { QUESTIONS, ENCOUNTERS, SEASONS } from './data.js';
 import { NEXT_LABEL, questionOf, seasonOf } from './logic.js';
 import {
-  watch, advance, undo, resetGame, adjustFruit, extendDeadline, isAdmin, loadKeys, collectSubs,
+  watch, watchClaims, advance, undo, resetGame, adjustFruit, extendDeadline, setShowQr, isAdmin,
+  loadJoinKey, collectSubs, releaseClass, joinUrl, qrSvg, rememberSession,
 } from './store.js';
 import { $, esc, roundLabel, phaseLabel, startTicker, keepLabel } from './ui.js';
 
-const g = (params.get('g') || '').toLowerCase();
+const g = params.get('s') || '';
 let game = null;
 let classes = [];
 let subs = [];
+let claims = {};
 let busy = false;
 
 const user = await ready();
 if (!g || !(await isAdmin(g, user.uid))) {
-  location.replace(`/?g=${encodeURIComponent(g)}`);
+  location.replace('/');
   throw new Error('not admin');
 }
+rememberSession(g);
 $('#gameName').textContent = g;
+const key = await loadJoinKey(g);
+const link = joinUrl(g, key);
 
 startTicker(() => game?.deadlineAt, $('#timer'));
 
@@ -27,6 +32,7 @@ watch(g, {
   onSubs: (v) => { subs = v; render(); },
   onError: (e) => { $('#ctlErr').textContent = `연결 오류: ${e.message}`; },
 });
+watchClaims(g, key, (v) => { claims = v; render(); });
 
 function currentKind() {
   if (!game) return null;
@@ -40,9 +46,10 @@ function previewText() {
   const q = questionOf(game.round);
   const optText = (qq) => (qq.type === 'ox' ? 'O / X' : qq.options.map((o, i) => `${i + 1}) ${o}`).join('  '));
   const answerText = (qq) => (qq.type === 'ox' ? qq.answer : `${qq.answer}번 ${qq.options[Number(qq.answer) - 1]}`);
+  const joined = Object.keys(claims).length;
   switch (game.phase) {
     case 'lobby':
-      return '출력 창을 프로젝터에 띄우고, 반 선생님 12명이 QR로 들어왔는지 확인한 뒤 시작하세요.';
+      return `출력 창을 프로젝터에 띄우면 참여 QR이 보여요. 반 선생님 ${joined}/12명이 반을 골랐어요.${joined < 12 ? ' 다 모이면 시작하세요.' : ' 모두 모였어요! 시작하세요.'}`;
     case 'quiz_open':
       return `<b>문제</b> ${esc(q.q)}<br>${esc(optText(q))}<br><b>정답</b> ${esc(answerText(q))}<br>반이 의논해서 선생님 휴대폰으로 답을 내요. 다 내면 정답을 공개하세요.`;
     case 'quiz_reveal':
@@ -70,6 +77,9 @@ function render() {
   $('#nextBtn').disabled = busy || !label;
   $('#undoBtn').disabled = busy || game.phase === 'lobby';
   $('#plusBtn').disabled = busy || !game.deadlineAt;
+  $('#joinCount').textContent = `${Object.keys(claims).length}/12`;
+  $('#qrToggle').textContent = game.showQr ? '출력 화면 QR 닫기' : '출력 화면에 QR 띄우기';
+  $('#qrToggle').classList.toggle('hidden', game.phase === 'lobby');
 
   const kind = currentKind();
   const now = kind ? collectSubs(subs, game.round, kind) : {};
@@ -88,8 +98,12 @@ function render() {
     } else if (kind) {
       cell = '<span class="muted">미제출</span>';
     }
+    const joined = c.id in claims
+      ? `<span class="pill ok">참여</span> <button class="mini-btn" style="width:auto;padding:0 8px;font-size:14px" data-release="${c.id}" type="button">해제</button>`
+      : '<span class="pill no">대기</span>';
     return `<tr class="grade-${c.grade}">
       <td><span class="dot"></span>${esc(c.name)}</td>
+      <td>${joined}</td>
       <td class="num"><b>${c.fruit}</b></td>
       <td class="num">${c.shared || 0}</td>
       <td>${cell}</td>
@@ -116,6 +130,10 @@ async function run(fn) {
 }
 
 $('#nextBtn').addEventListener('click', () => {
+  if (game?.phase === 'lobby') {
+    const n = Object.keys(claims).length;
+    if (n < 12 && !confirm(`아직 ${12 - n}개 반 선생님이 반을 고르지 않았어요. 시작할까요?`)) return;
+  }
   if (game?.phase === 'quiz_open' || game?.phase === 'store_open') {
     const kind = game.phase === 'quiz_open' ? 'quiz' : 'store';
     const n = Object.keys(collectSubs(subs, game.round, kind)).length;
@@ -127,10 +145,19 @@ $('#undoBtn').addEventListener('click', () => {
   if (confirm('직전 단계로 되돌릴까요? 그 단계에서 바뀐 열매도 함께 되돌아가요.')) run(() => undo(g));
 });
 $('#plusBtn').addEventListener('click', () => run(() => extendDeadline(g, game.deadlineAt, 10)));
+$('#qrToggle').addEventListener('click', () => run(() => setShowQr(g, !game.showQr)));
 $('#resetBtn').addEventListener('click', () => {
-  if (confirm('모든 반을 열매 10개로 되돌리고 처음부터 시작할까요? QR은 그대로 쓸 수 있어요.')) run(() => resetGame(g));
+  if (confirm('모든 반을 열매 10개로 되돌리고 처음부터 시작할까요? 선생님들이 고른 반은 그대로 유지돼요.')) run(() => resetGame(g));
 });
 $('#classRows').addEventListener('click', (e) => {
+  const rel = e.target.closest('[data-release]');
+  if (rel) {
+    const c = classes.find((x) => x.id === rel.dataset.release);
+    if (confirm(`${c.name} 선택을 해제할까요? 그 반 선생님은 QR을 다시 찍고 반을 다시 골라야 해요.`)) {
+      run(() => releaseClass(g, key, c.id));
+    }
+    return;
+  }
   const b = e.target.closest('[data-adj]');
   if (!b) return;
   const c = classes.find((x) => x.id === b.dataset.adj);
@@ -138,8 +165,13 @@ $('#classRows').addEventListener('click', (e) => {
 });
 
 $('#openDisplay').addEventListener('click', () => {
-  window.open(`/display?g=${encodeURIComponent(g)}`, 'farm-display', 'popup,width=1280,height=720');
+  window.open(`/display?s=${encodeURIComponent(g)}`, 'farm-display', 'popup,width=1280,height=720');
 });
+
+// 참여 QR
+$('#joinQr').innerHTML = qrSvg(link);
+$('#joinLink').href = link;
+$('#joinLink').textContent = link;
 
 // 미리 보기 목록
 $('#qList').innerHTML = `<h3 style="font-size:20px;margin-bottom:8px">감사 농사 문제</h3><ol style="margin:0;padding-left:22px;line-height:1.7">${
@@ -148,21 +180,3 @@ $('#qList').innerHTML = `<h3 style="font-size:20px;margin-bottom:8px">감사 농
 $('#encList').innerHTML = `<h3 style="font-size:20px;margin-bottom:8px">계절별 인카운터</h3>${
   ENCOUNTERS.map((list, s) => `<p style="margin:0 0 6px"><b>${SEASONS[s]}</b> ${
     list.map((e) => `${esc(e.name)}(×${e.mult}${e.keep !== 1 ? `, ${keepLabel(e.keep)}` : ''})`).join(' · ')}</p>`).join('')}`;
-
-// QR
-const keys = await loadKeys(g);
-$('#qrGrid').innerHTML = CLASSES.map((c) => {
-  const url = `${location.origin}/teacher?g=${encodeURIComponent(g)}&c=${c.id}&t=${keys[c.id] || ''}`;
-  let svg = '';
-  if (window.qrcode) {
-    const qr = window.qrcode(0, 'M');
-    qr.addData(url);
-    qr.make();
-    svg = qr.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
-  }
-  return `<div class="qr-card grade-${c.grade}"><h3>${esc(c.name)}</h3>${svg}<div><a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a></div></div>`;
-}).join('');
-$('#printQr').addEventListener('click', () => {
-  $('#qrPanel').open = true;
-  window.print();
-});

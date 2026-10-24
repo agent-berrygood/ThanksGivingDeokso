@@ -144,7 +144,17 @@ details > summary { font-family: var(--display); font-size: 20px; cursor: pointe
 .bar.alt { background: #D6C3B1; color: var(--ink); }
 .verse { font-family: var(--display); font-size: 4vh; color: var(--accent); text-align: center; }
 
+.lobby { display: grid; grid-template-columns: 1fr auto; gap: 3vw; align-items: center; }
+.lobby .chips { grid-template-columns: repeat(6, minmax(0, 1fr)); margin-top: 1vh; }
+.qr-img { background: #fff; border: 2px solid var(--line); border-radius: 2vh; padding: 1.4vh; }
+.qr-img svg { display: block; width: 46vh; height: 46vh; }
+.qr-overlay { position: fixed; inset: 0; background: rgba(36, 32, 28, 0.55); display: flex; align-items: center; justify-content: center; z-index: 10; }
+.qr-box { background: var(--paper); border-radius: 3vh; padding: 4vh 4vw; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 3vh; }
+.qr-box h2 { font-size: 5vh; }
+.qr-box .qr-img svg { width: 60vh; height: 60vh; }
+
 /* ===== 반 선생님 (휴대폰) ===== */
+.select { width: 100%; font-size: 24px; padding: 14px; border: 3px solid var(--line); border-radius: 14px; font-family: var(--display); background: #fff; color: var(--ink); min-height: 64px; }
 .teacher { max-width: 480px; margin: 0 auto; padding: 16px 16px 40px; display: flex; flex-direction: column; gap: 14px; min-height: 100vh; }
 .t-head { border-radius: var(--radius); padding: 16px; color: #fff; background: var(--g, var(--accent)); }
 .t-head .cname { font-family: var(--display); font-size: 30px; }

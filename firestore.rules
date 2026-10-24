@@ -2,8 +2,9 @@ rules_version = '2';
 
 // 감사 열매 농장 보안 규칙
 // - 모든 접속자는 익명 로그인
-// - 진행자: secrets/{게임}의 PIN을 알고 games/{게임}/admins/{uid}를 만든 기기
-// - 반 선생님: 반 토큰을 알아야 제출 문서 ID를 만들 수 있음 (토큰은 keys/ 에만 있고 진행자만 읽음)
+// - 진행자: 세션을 처음 연 기기 (games/{세션}/admins/{uid})
+// - 반 선생님: 참여 QR의 참여 키를 알아야 반을 고를 수 있고,
+//   반을 고른 기기만 그 반 이름으로 제출할 수 있다
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -15,14 +16,18 @@ service cloud.firestore {
       return signedIn() && exists(/databases/$(database)/documents/games/$(g)/admins/$(request.auth.uid));
     }
 
-    // 게임별 진행자 PIN — 아무도 읽을 수 없고, 처음 한 번만 만들 수 있다
-    match /secrets/{g} {
-      allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['pin'])
-        && request.resource.data.pin is string
-        && request.resource.data.pin.size() >= 4
-        && request.resource.data.pin.size() <= 20;
-      allow read, update, delete: if false;
+    function joinKey(g) {
+      return get(/databases/$(database)/documents/games/$(g)/keys/join).data.token;
+    }
+
+    function claimUid(g, c) {
+      return get(/databases/$(database)/documents/games/$(g)/joins/$(joinKey(g))/claims/$(c)).data.uid;
+    }
+
+    function classIds() {
+      return ['faith-1', 'faith-2', 'faith-3', 'faith-4',
+              'hope-1', 'hope-2', 'hope-3', 'hope-4',
+              'love-1', 'love-2', 'love-3', 'love-4'];
     }
 
     match /games/{g} {
@@ -30,13 +35,13 @@ service cloud.firestore {
       allow create, update: if isAdmin(g);
       allow delete: if false;
 
-      // PIN이 맞으면 이 기기(uid)를 진행자로 등록
+      // 세션을 처음 여는 기기만 진행자가 된다 (세션 문서가 생기기 전에만 등록 가능)
       match /admins/{uid} {
         allow get: if signedIn() && request.auth.uid == uid;
         allow create: if signedIn()
           && request.auth.uid == uid
-          && request.resource.data.keys().hasOnly(['pin'])
-          && request.resource.data.pin == get(/databases/$(database)/documents/secrets/$(g)).data.pin;
+          && !exists(/databases/$(database)/documents/games/$(g))
+          && request.resource.data.keys().hasOnly(['at']);
         allow list, update, delete: if false;
       }
 
@@ -45,7 +50,8 @@ service cloud.firestore {
         allow write: if isAdmin(g);
       }
 
-      match /keys/{c} {
+      // 참여 키 — 진행자만 읽는다 (QR에 담긴다)
+      match /keys/{k} {
         allow read, write: if isAdmin(g);
       }
 
@@ -53,24 +59,34 @@ service cloud.firestore {
         allow read, write: if isAdmin(g);
       }
 
-      // 제출 문서 ID = {라운드}-{종류}-{반}-{반 토큰}
-      // 토큰을 아는 반 선생님만 자기 반 문서를 만들고, ID를 아는 사람만 그 문서를 읽을 수 있다
+      // 반 선택: 참여 키를 경로로 알아야 읽고 만들 수 있다
+      match /joins/{key}/claims/{c} {
+        allow read: if signedIn() && (isAdmin(g) || key == joinKey(g));
+        allow create: if signedIn()
+          && key == joinKey(g)
+          && c in classIds()
+          && request.resource.data.keys().hasOnly(['uid', 'at'])
+          && request.resource.data.uid == request.auth.uid;
+        allow delete: if isAdmin(g) || (signedIn() && resource.data.uid == request.auth.uid);
+        allow update: if false;
+      }
+
+      // 제출 문서 ID = {라운드}_{종류}_{반}
       match /subs/{sid} {
-        allow get: if signedIn();
-        allow list: if isAdmin(g);
-        allow delete: if isAdmin(g);
+        allow get: if isAdmin(g) || (signedIn() && claimUid(g, sid.split('_')[2]) == request.auth.uid);
+        allow list, delete: if isAdmin(g);
         allow create, update: if validSub(g, sid);
       }
 
       function validSub(g, sid) {
         let d = request.resource.data;
         let game = get(/databases/$(database)/documents/games/$(g)).data;
-        let token = get(/databases/$(database)/documents/games/$(g)/keys/$(d.classId)).data.token;
         let cls = get(/databases/$(database)/documents/games/$(g)/classes/$(d.classId)).data;
         return signedIn()
           && d.keys().hasOnly(['classId', 'round', 'kind', 'value', 'at'])
           && d.round is int
-          && sid == string(d.round) + '-' + d.kind + '-' + d.classId + '-' + token
+          && sid == string(d.round) + '_' + d.kind + '_' + d.classId
+          && claimUid(g, d.classId) == request.auth.uid
           && d.round == game.round
           && (
             (d.kind == 'quiz' && game.phase == 'quiz_open'

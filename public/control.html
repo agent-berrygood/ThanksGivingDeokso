@@ -14,10 +14,11 @@
   <header>
     <div>
       <h1>감사 열매 농장 · 진행자</h1>
-      <div class="muted">게임 <b id="gameName"></b></div>
+      <div class="muted">세션 <b id="gameName"></b> · 반 참여 <b id="joinCount">0/12</b></div>
     </div>
     <div class="row">
       <button class="btn" id="openDisplay" type="button">출력 창 열기</button>
+      <button class="btn secondary" id="qrToggle" type="button">출력 화면에 QR 띄우기</button>
       <button class="btn ghost" id="resetBtn" type="button">처음부터 다시</button>
     </div>
   </header>
@@ -41,7 +42,7 @@
     <section class="card">
       <h2 style="font-size:22px;margin-bottom:8px">반별 현황 <span class="pill" id="subCount"></span></h2>
       <table class="ctl">
-        <thead><tr><th>반</th><th class="num">열매</th><th class="num">나눈 합</th><th>이번 제출</th><th>조정</th></tr></thead>
+        <thead><tr><th>반</th><th>선생님</th><th class="num">열매</th><th class="num">나눈 합</th><th>이번 제출</th><th>조정</th></tr></thead>
         <tbody id="classRows"></tbody>
       </table>
     </section>
@@ -56,10 +57,9 @@
   </details>
 
   <details class="card" id="qrPanel">
-    <summary>반 선생님 QR (12장)</summary>
-    <p class="noprint muted">반 선생님 휴대폰으로 찍으면 바로 그 반 화면이 열려요. 로그인은 필요 없어요.</p>
-    <div class="row noprint" style="margin-bottom:12px"><button class="btn secondary" id="printQr" type="button">QR 인쇄</button></div>
-    <div class="qr-grid" id="qrGrid"></div>
+    <summary>참여 QR</summary>
+    <p class="noprint muted">출력 화면 시작 전 화면에 같은 QR이 크게 떠요. 반 선생님이 찍고 반을 고르면 돼요. 휴대폰을 바꾼 선생님이 있으면 반별 현황에서 '해제'를 눌러 주세요.</p>
+    <div class="qr-card" style="max-width:320px"><div id="joinQr"></div><a id="joinLink" target="_blank" rel="noopener"></a></div>
   </details>
 </main>
 <script type="module" src="/js/control.js"></script>

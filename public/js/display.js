@@ -1,19 +1,26 @@
 import { ready, params } from './fb.js';
 import { GRADES, ENCOUNTERS, ENCOUNTER_BY_KEY, SEASONS, QUIZ_REWARD } from './data.js';
 import { questionOf, seasonOf, awards, simulateAllShare } from './logic.js';
-import { watch, isAdmin, collectSubs } from './store.js';
+import {
+  watch, watchClaims, isAdmin, collectSubs, loadJoinKey, joinUrl, qrSvg,
+} from './store.js';
 import { $, esc, roundLabel, phaseLabel, startTicker, signed, keepLabel } from './ui.js';
 
-const g = (params.get('g') || '').toLowerCase();
+const g = params.get('s') || '';
 let game = null;
 let classes = [];
 let subs = [];
+let claims = {};
 
 const user = await ready();
 if (!g || !(await isAdmin(g, user.uid))) {
   $('#stage').innerHTML = '<h2>진행자 컨트롤 화면의 "출력 창 열기" 버튼으로 열어 주세요.</h2>';
   throw new Error('not admin');
 }
+const key = await loadJoinKey(g);
+const QR = qrSvg(joinUrl(g, key), 8);
+$('#qrOverlayImg').innerHTML = QR;
+watchClaims(g, key, (v) => { claims = v; if (game?.phase === 'lobby') renderStage(); });
 
 watch(g, {
   onGame: (v) => { game = v; render(); },
@@ -103,9 +110,16 @@ function renderStage() {
   switch (game.phase) {
     case 'lobby':
       s.innerHTML = `
-        <h2>열매 10개로 시작! 나눌까, 아낄까?</h2>
-        <p class="sub">12개 반이 <b>감사 창고</b> 하나를 함께 써요. 창고에 모인 열매 × 날씨 배수 ÷ 12 만큼 모든 반이 똑같이 받아요.</p>
-        <p class="sub">계절마다 2라운드, 모두 8라운드. 감사 농사 문제를 맞히면 열매 +${QUIZ_REWARD}!</p>`;
+        <div class="lobby">
+          <div class="lobby-text">
+            <h2>열매 10개로 시작! 나눌까, 아낄까?</h2>
+            <p class="sub">12개 반이 <b>감사 창고</b> 하나를 함께 써요. 창고에 모인 열매 × 날씨 배수 ÷ 12 만큼 모든 반이 똑같이 받아요.</p>
+            <p class="sub">계절마다 2라운드, 모두 8라운드. 감사 농사 문제를 맞히면 열매 +${QUIZ_REWARD}!</p>
+            <p class="sub" style="margin-top:2vh"><b>반 선생님</b>: QR을 찍고 우리 반을 골라 주세요. (${Object.keys(claims).length}/12)</p>
+            <div class="chips">${classes.map((c) => `<div class="chip grade-${c.grade} ${c.id in claims ? 'done' : ''}">${esc(c.name)}<span class="v">${c.id in claims ? '✓' : '…'}</span></div>`).join('')}</div>
+          </div>
+          <div class="qr-img">${QR}</div>
+        </div>`;
       break;
     case 'quiz_open':
     case 'quiz_reveal': {
@@ -176,7 +190,8 @@ function render() {
   if (!game) return;
   $('#phase').textContent = phaseLabel(game.phase);
   $('#round').textContent = roundLabel(game);
-  $('#board').classList.toggle('hidden', game.phase === 'result');
+  $('#board').classList.toggle('hidden', game.phase === 'result' || game.phase === 'lobby');
+  $('#qrOverlay').classList.toggle('hidden', !game.showQr || game.phase === 'lobby');
   renderStage();
   renderBoard();
 }

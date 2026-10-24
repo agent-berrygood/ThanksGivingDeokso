@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 </head>
 <body>
 <div class="display-root">
@@ -17,6 +18,12 @@
   </header>
   <section class="stage" id="stage"><h2>불러오는 중…</h2></section>
   <section class="board" id="board" aria-label="12개 반 열매 현황"></section>
+</div>
+<div class="qr-overlay hidden" id="qrOverlay">
+  <div class="qr-box">
+    <h2>반 선생님, QR을 찍고 반을 골라 주세요</h2>
+    <div class="qr-img" id="qrOverlayImg"></div>
+  </div>
 </div>
 <script type="module" src="/js/display.js"></script>
 </body>

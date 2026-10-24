@@ -1,13 +1,17 @@
-import { ready, params, db, doc, setDoc, onSnapshot, serverTimestamp } from './fb.js';
-import { CLASSES, ENCOUNTER_BY_KEY, QUIZ_REWARD } from './data.js';
+import { ready, params, doc, setDoc, onSnapshot, serverTimestamp } from './fb.js';
+import { CLASSES, GRADES, ENCOUNTER_BY_KEY, QUIZ_REWARD } from './data.js';
 import { questionOf, rank, clampContribution } from './logic.js';
-import { refs, subId, watch } from './store.js';
+import {
+  refs, subId, watch, watchClaims, claimClass,
+} from './store.js';
 import { $, esc, roundLabel, phaseLabel, startTicker, keepLabel } from './ui.js';
 
-const g = (params.get('g') || '').toLowerCase();
-const classId = params.get('c') || '';
-const token = params.get('t') || '';
-const meta = CLASSES.find((c) => c.id === classId);
+const g = params.get('s') || '';
+const key = params.get('k') || '';
+let classId = '';
+let meta = null;
+let claims = {};
+let started = false;
 
 let game = null;
 let classes = [];
@@ -19,41 +23,94 @@ let draft = null; // 창고 숫자 입력 중인 값
 let sending = false;
 let errMsg = '';
 
-if (!g || !meta || !token) {
-  $('#body').innerHTML = '<div class="big-msg">QR 주소가 올바르지 않아요.<br>진행자에게 반 QR을 다시 받아 주세요.</div>';
+if (!g || !key) {
+  $('#body').innerHTML = '<div class="big-msg">QR 주소가 올바르지 않아요.<br>출력 화면의 QR을 다시 찍어 주세요.</div>';
   throw new Error('bad link');
 }
-$('#root').classList.add(`grade-${meta.grade}`);
-$('#cname').textContent = meta.name;
 
 const updateConn = () => { $('#conn').textContent = navigator.onLine ? '' : '인터넷 연결이 끊겼어요. 다시 연결되면 자동으로 이어져요.'; };
 addEventListener('online', updateConn);
 addEventListener('offline', updateConn);
 updateConn();
 
-await ready();
+const user = await ready();
+
+// ===== 초기 세팅: 우리 반 고르기 =====
+function setupView() {
+  const taken = (id) => id in claims && claims[id].uid !== user.uid;
+  $('#cname').textContent = '감사 열매 농장';
+  $('#tphase').textContent = '반 선생님 초기 세팅';
+  $('#tround').textContent = '';
+  $('#tfruit').innerHTML = '';
+  $('#body').innerHTML = `
+    <div class="t-q">우리 반을 골라 주세요</div>
+    <label for="classSel" class="muted">반 선택</label>
+    <select id="classSel" class="select">
+      <option value="">— 반을 고르세요 —</option>
+      ${GRADES.map((gr) => `<optgroup label="${gr.name} (${gr.school})">${
+        CLASSES.filter((c) => c.grade === gr.key).map((c) => `<option value="${c.id}" ${taken(c.id) ? 'disabled' : ''}>${esc(c.name)}${taken(c.id) ? ' (선택됨)' : ''}</option>`).join('')
+      }</optgroup>`).join('')}
+    </select>
+    <button type="button" class="btn big" id="claimBtn">이 반으로 시작</button>
+    <div class="notice">이미 다른 선생님이 고른 반은 고를 수 없어요. 잘못 골랐거나 휴대폰을 바꿨다면 진행자에게 '해제'를 부탁해 주세요.</div>
+    ${errMsg ? `<div class="notice" style="background:#FEE2E2;color:#B91C1C">${esc(errMsg)}</div>` : ''}`;
+}
+
+function start(id) {
+  classId = id;
+  meta = CLASSES.find((c) => c.id === id);
+  started = true;
+  $('#root').className = `teacher grade-${meta.grade}`;
+  $('#cname').textContent = meta.name;
+  errMsg = '';
+  mine = classes.find((c) => c.id === classId) || null;
+  subKey = '';
+  resubscribe();
+  render();
+}
+
+function onClaims(v) {
+  claims = v;
+  const mineId = Object.keys(v).find((id) => v[id].uid === user.uid);
+  if (!started && mineId) { start(mineId); return; }
+  if (started && !mineId) {
+    // 진행자가 해제함 → 다시 고르기
+    started = false;
+    classId = '';
+    meta = null;
+    if (offSub) offSub();
+    offSub = null;
+    subKey = '';
+    $('#root').className = 'teacher';
+  }
+  if (!started && document.activeElement?.id !== 'classSel') setupView();
+}
+
+watchClaims(g, key, onClaims, (e) => {
+  $('#body').innerHTML = `<div class="big-msg">세션에 들어가지 못했어요.<br>출력 화면의 QR을 다시 찍어 주세요.</div><p class="conn">${esc(e.code || e.message)}</p>`;
+});
 
 watch(g, {
-  onGame: (v) => { game = v; resubscribe(); render(); },
-  onClasses: (v) => { classes = v; mine = v.find((c) => c.id === classId) || null; render(); },
-  onError: (e) => { errMsg = `연결 오류: ${e.message}`; render(); },
+  onGame: (v) => { game = v; if (started) { resubscribe(); render(); } },
+  onClasses: (v) => { classes = v; mine = v.find((c) => c.id === classId) || null; if (started) render(); },
+  onError: (e) => { errMsg = `연결 오류: ${e.message}`; if (started) render(); },
 });
 
 const kindOf = (phase) => (phase.startsWith('quiz') ? 'quiz' : ['store_open', 'store_locked', 'encounter_reveal'].includes(phase) ? 'store' : null);
 
 // 이번 라운드·종류의 내 제출 문서를 구독 (새로고침해도 제출 상태가 보인다)
 function resubscribe() {
-  if (!game) return;
+  if (!game || !started) return;
   const kind = kindOf(game.phase);
-  const key = kind ? subId(game.round, kind, classId, token) : '';
-  if (key === subKey) return;
-  subKey = key;
+  const sk = kind ? subId(game.round, kind, classId) : '';
+  if (sk === subKey) return;
+  subKey = sk;
   if (offSub) offSub();
   offSub = null;
   mySub = null;
   draft = null;
-  if (!key) return;
-  offSub = onSnapshot(doc(refs(g).subs, key), (s) => {
+  if (!sk) return;
+  offSub = onSnapshot(doc(refs(g).subs, sk), (s) => {
     mySub = s.exists() ? s.data() : null;
     render();
   }, () => { /* 문서가 없으면 권한 오류가 날 수 있음 — 미제출로 본다 */ mySub = null; render(); });
@@ -65,7 +122,7 @@ async function submit(kind, value) {
   errMsg = '';
   render();
   try {
-    await setDoc(doc(refs(g).subs, subId(game.round, kind, classId, token)), {
+    await setDoc(doc(refs(g).subs, subId(game.round, kind, classId)), {
       classId, round: game.round, kind, value, at: serverTimestamp(),
     });
   } catch (e) {
@@ -149,6 +206,7 @@ function resultView() {
 }
 
 function render() {
+  if (!started) return;
   headRender();
   const body = $('#body');
   if (!game) {
@@ -180,7 +238,24 @@ function render() {
   if (t) window.__tick = startTicker(() => game?.deadlineAt, t);
 }
 
-$('#body').addEventListener('click', (e) => {
+$('#body').addEventListener('click', async (e) => {
+  if (e.target.closest('#claimBtn')) {
+    const id = $('#classSel').value;
+    if (!id) { errMsg = '반을 먼저 골라 주세요.'; setupView(); return; }
+    const name = CLASSES.find((c) => c.id === id).name;
+    if (!confirm(`${name} 선생님으로 시작할까요?`)) return;
+    errMsg = '';
+    try {
+      await claimClass(g, key, id, user.uid);
+      start(id);
+    } catch (err) {
+      console.error(err);
+      errMsg = '그 반은 이미 다른 선생님이 골랐어요. 다른 반을 고르거나 진행자에게 해제를 부탁해 주세요.';
+      setupView();
+    }
+    return;
+  }
+  if (!started) return;
   const a = e.target.closest('[data-ans]');
   if (a && game?.phase === 'quiz_open') { submit('quiz', a.dataset.ans); return; }
   const fruit = mine?.fruit ?? 0;
