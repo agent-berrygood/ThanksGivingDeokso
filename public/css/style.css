@@ -57,6 +57,8 @@ input { font-family: var(--body); }
 .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
 .next-box { display: flex; flex-direction: column; gap: 12px; }
+.tut-box { border-top: 1.5px dashed var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+tr.inactive td { opacity: 0.4; }
 .next-box .preview { font-size: 18px; line-height: 1.6; background: var(--accent-soft); border-radius: 12px; padding: 12px 14px; }
 table.ctl { width: 100%; border-collapse: collapse; font-size: 16px; }
 table.ctl th, table.ctl td { border-bottom: 1px solid var(--line); padding: 8px 6px; text-align: left; }
@@ -132,7 +134,10 @@ details > summary { font-family: var(--display); font-size: 20px; cursor: pointe
 .cls .badge { font-size: 1.8vh; color: var(--g); font-family: var(--display); }
 
 .result-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 3vw; min-height: 0; }
-.stage:has(.result-grid) { justify-content: flex-start; gap: 3vh; }
+.stage:has(.result-grid) { justify-content: flex-start; gap: 2vh; }
+.stage:has(.result-grid) .rank-list { font-size: 2.6vh; }
+.stage:has(.result-grid) .award { padding: 1vh 1.2vw; }
+.stage:has(.result-grid) .award p { font-size: 3.2vh; }
 .rank-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8vh 1.6vw; font-size: 2.8vh; }
 .rank-list div { display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 0.4vh 0; }
 .awards { display: flex; flex-direction: column; gap: 1.4vh; }
@@ -152,6 +157,25 @@ details > summary { font-family: var(--display); font-size: 20px; cursor: pointe
 .qr-box { background: var(--paper); border-radius: 3vh; padding: 4vh 4vw; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 3vh; }
 .qr-box h2 { font-size: 5vh; }
 .qr-box .qr-img svg { width: 60vh; height: 60vh; }
+
+.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.6vw; }
+.step { border: 2px solid var(--line); border-radius: 2vh; padding: 2vh 1.4vw; }
+.step b { display: inline-flex; width: 5vh; height: 5vh; border-radius: 50%; background: var(--accent); color: #fff; align-items: center; justify-content: center; font-family: var(--display); font-weight: 400; font-size: 3vh; }
+.step h3 { font-size: 3.6vh; margin-top: 1.2vh; }
+.step p { font-size: 2.6vh; line-height: 1.45; color: var(--muted); margin: 1vh 0 0; }
+.weather-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1.4vw; }
+.weather-col { border: 2px solid var(--line); border-radius: 1.6vh; padding: 1.6vh 1.2vw; }
+.weather-col h3 { font-size: 3.6vh; color: var(--accent); margin-bottom: 1vh; }
+.weather-col p { font-size: 2.5vh; margin: 0.6vh 0; }
+.warn { color: var(--bad); }
+table.demo { border-collapse: collapse; font-size: 3vh; width: 100%; }
+table.demo th, table.demo td { border-bottom: 2px solid var(--line); padding: 1vh 1vw; text-align: left; }
+table.demo th { font-family: var(--display); font-weight: 400; color: var(--muted); }
+.joint-goal { font-family: var(--display); font-size: 4.4vh; background: var(--accent-soft); border-radius: 2vh; padding: 2vh 2vw; text-align: center; }
+.joint-goal b { color: var(--accent); font-weight: 400; }
+.joint-goal.win { background: #DCFCE7; }
+.joint-goal.win b { color: var(--good); }
+.lesson { font-size: 3vh; line-height: 1.5; border-left: 1vh solid var(--accent); background: var(--accent-soft); padding: 1.4vh 1.6vw; border-radius: 1vh; }
 
 /* ===== 반 선생님 (휴대폰) ===== */
 .select { width: 100%; font-size: 24px; padding: 14px; border: 3px solid var(--line); border-radius: 14px; font-family: var(--display); background: #fff; color: var(--ink); min-height: 64px; }

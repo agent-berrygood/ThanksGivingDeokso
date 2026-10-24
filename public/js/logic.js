@@ -1,5 +1,11 @@
 // 감사 열매 농장 — 순수 게임 로직 (브라우저·node 공용, Firebase 의존 없음)
-import { CLASSES, ENCOUNTERS, ENCOUNTER_BY_KEY, START_FRUIT, QUIZ_REWARD, ROUNDS, QUESTIONS } from './data.js';
+import {
+  CLASSES, ENCOUNTERS, ENCOUNTER_BY_KEY, START_FRUIT, QUIZ_REWARD, ROUNDS, QUESTIONS, JOINT_GOAL,
+} from './data.js';
+
+export const ALL_IDS = CLASSES.map((c) => c.id);
+// 이번 게임에 참여하는 반 (시작 전이면 전체)
+export const activeOf = (game) => (game?.active?.length ? game.active : ALL_IDS);
 
 export const seasonOf = (round) => Math.floor(round / 2);
 export const roundInSeason = (round) => (round % 2) + 1;
@@ -42,16 +48,19 @@ export function applyStore(fruits, contributions, encounterKey, classIds = CLASS
     c[id] = clampContribution(contributions[id] ?? 0, fruits[id] ?? 0);
     X += c[id];
   }
+  const n = classIds.length;
   const pool = X * enc.mult;
-  const share = floorSafe(pool / classIds.length);
+  const share = floorSafe(pool / n);
   const perClass = {};
   for (const id of classIds) {
     const before = fruits[id] ?? 0;
     const leftover = before - c[id];
     const kept = floorSafe(leftover * enc.keep);
-    perClass[id] = { before, c: c[id], leftover, kept, share, after: kept + share };
+    // 받은 몫 가운데 다른 반이 낸 열매에서 온 부분
+    const fromOthers = Math.min(share, floorSafe(((X - c[id]) * enc.mult) / n));
+    perClass[id] = { before, c: c[id], leftover, kept, share, fromOthers, after: kept + share };
   }
-  return { enc: enc.key, X, mult: enc.mult, keep: enc.keep, pool, share, perClass };
+  return { enc: enc.key, X, mult: enc.mult, keep: enc.keep, pool, share, n, perClass };
 }
 
 export function initialFruits(classIds = CLASSES.map((c) => c.id)) {
@@ -76,12 +85,27 @@ export function rank(classes) {
   return [...classes].sort((a, b) => b.fruit - a.fruit || (b.shared ?? 0) - (a.shared ?? 0) || a.order - b.order);
 }
 
-export function awards(classes) {
+// 모든 반이 목표 이상이면 공동우승
+export function jointWin(classes, goal = JOINT_GOAL) {
+  return classes.length > 0 && classes.every((c) => c.fruit >= goal);
+}
+
+export function awards(classes, goal = JOINT_GOAL) {
   const ranked = rank(classes);
   const byGrade = {};
   for (const c of ranked) if (!byGrade[c.grade]) byGrade[c.grade] = c;
   const sharer = [...classes].sort((a, b) => (b.shared ?? 0) - (a.shared ?? 0) || b.fruit - a.fruit || a.order - b.order)[0];
-  return { ranked, gradeWinners: byGrade, sharer, total: classes.reduce((a, c) => a + c.fruit, 0) };
+  const lowest = ranked[ranked.length - 1];
+  return {
+    ranked,
+    gradeWinners: byGrade,
+    sharer,
+    winner: ranked[0],
+    lowest,
+    joint: jointWin(classes, goal),
+    goal,
+    total: classes.reduce((a, c) => a + c.fruit, 0),
+  };
 }
 
 // 다음 단계 계산 (상태 전이표)

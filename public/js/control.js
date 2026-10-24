@@ -1,9 +1,11 @@
 import { ready, params } from './fb.js';
-import { QUESTIONS, ENCOUNTERS, SEASONS } from './data.js';
-import { NEXT_LABEL, questionOf, seasonOf } from './logic.js';
+import {
+  QUESTIONS, ENCOUNTERS, SEASONS, CLASSES, TUTORIAL, JOINT_GOAL,
+} from './data.js';
+import { NEXT_LABEL, questionOf, seasonOf, activeOf } from './logic.js';
 import {
   watch, watchClaims, advance, undo, resetGame, adjustFruit, extendDeadline, setShowQr, isAdmin,
-  loadJoinKey, collectSubs, releaseClass, joinUrl, qrSvg, rememberSession,
+  loadJoinKey, collectSubs, releaseClass, joinUrl, qrSvg, rememberSession, setTutorial,
 } from './store.js';
 import { $, esc, roundLabel, phaseLabel, startTicker, keepLabel } from './ui.js';
 
@@ -34,6 +36,12 @@ watch(g, {
 });
 watchClaims(g, key, (v) => { claims = v; render(); });
 
+// 이번 게임 참여 반: 시작 전에는 반을 고른 반, 시작 뒤에는 시작할 때 확정된 반
+function activeIds() {
+  if (game?.phase === 'lobby') return CLASSES.filter((c) => c.id in claims).map((c) => c.id);
+  return activeOf(game);
+}
+
 function currentKind() {
   if (!game) return null;
   if (game.phase === 'quiz_open' || game.phase === 'quiz_reveal') return 'quiz';
@@ -49,7 +57,10 @@ function previewText() {
   const joined = Object.keys(claims).length;
   switch (game.phase) {
     case 'lobby':
-      return `출력 창을 프로젝터에 띄우면 참여 QR이 보여요. 반 선생님 ${joined}/12명이 반을 골랐어요.${joined < 12 ? ' 다 모이면 시작하세요.' : ' 모두 모였어요! 시작하세요.'}`;
+      if (game.tutorial !== null && game.tutorial !== undefined) {
+        return '설명·연습 화면을 보여 주는 중이에요. 아래 버튼으로 넘기세요. 실제 열매에는 영향이 없어요.';
+      }
+      return `출력 창을 프로젝터에 띄우면 참여 QR이 보여요. 지금 ${joined}개 반이 반을 골랐어요. 게임은 <b>시작할 때 반을 고른 반만</b> 참여해요. 공동우승 목표는 모든 반 ${JOINT_GOAL}개 이상이에요.`;
     case 'quiz_open':
       return `<b>문제</b> ${esc(q.q)}<br>${esc(optText(q))}<br><b>정답</b> ${esc(answerText(q))}<br>반이 의논해서 선생님 휴대폰으로 답을 내요. 다 내면 정답을 공개하세요.`;
     case 'quiz_reveal':
@@ -77,18 +88,41 @@ function render() {
   $('#nextBtn').disabled = busy || !label;
   $('#undoBtn').disabled = busy || game.phase === 'lobby';
   $('#plusBtn').disabled = busy || !game.deadlineAt;
-  $('#joinCount').textContent = `${Object.keys(claims).length}/12`;
+  const act = activeIds();
+  $('#joinCount').textContent = game.phase === 'lobby' ? `${act.length}/12` : `${act.length}개 반 참여 중`;
   $('#qrToggle').textContent = game.showQr ? '출력 화면 QR 닫기' : '출력 화면에 QR 띄우기';
   $('#qrToggle').classList.toggle('hidden', game.phase === 'lobby');
 
+  // 설명·연습 컨트롤
+  const tut = game.tutorial;
+  const inTut = tut !== null && tut !== undefined;
+  $('#tutBox').classList.toggle('hidden', game.phase !== 'lobby');
+  $('#tutStart').classList.toggle('hidden', inTut);
+  ['#tutPrev', '#tutNext', '#tutEnd'].forEach((s) => $(s).classList.toggle('hidden', !inTut));
+  if (inTut) {
+    const t = TUTORIAL[tut];
+    const needReveal = t?.reveal && !game.tutorialReveal;
+    $('#tutLabel').textContent = `${tut + 1}/${TUTORIAL.length} · ${t?.title || ''}${needReveal ? ' — 다음을 누르면 정답·결과 공개' : ''}`;
+    $('#tutPrev').disabled = busy || (tut === 0 && !game.tutorialReveal);
+    $('#tutNext').disabled = busy || (tut >= TUTORIAL.length - 1);
+    $('#tutNext').textContent = needReveal ? '공개 ▶' : '다음 ▶';
+  } else {
+    $('#tutLabel').textContent = '';
+  }
+  $('#nextBtn').disabled = busy || !label || inTut;
+
   const kind = currentKind();
-  const now = kind ? collectSubs(subs, game.round, kind) : {};
+  const now = kind ? collectSubs(subs, game.round, kind, act) : {};
   const count = Object.keys(now).length;
-  $('#subCount').textContent = kind ? `제출 ${count}/12` : '';
+  $('#subCount').textContent = kind ? `제출 ${count}/${act.length}` : '';
   $('#subCount').classList.toggle('hidden', !kind);
 
   const q = questionOf(game.round);
   $('#classRows').innerHTML = classes.map((c) => {
+    const inGame = game.phase === 'lobby' || act.includes(c.id);
+    if (!inGame) {
+      return `<tr class="grade-${c.grade} inactive"><td><span class="dot"></span>${esc(c.name)}</td><td colspan="5" class="muted">이번 게임 미참여</td></tr>`;
+    }
     let cell = '<span class="muted">—</span>';
     if (kind === 'quiz' && c.id in now) {
       const ok = game.phase === 'quiz_reveal' ? (now[c.id] === q.answer ? ' ok' : ' no') : '';
@@ -131,13 +165,16 @@ async function run(fn) {
 
 $('#nextBtn').addEventListener('click', () => {
   if (game?.phase === 'lobby') {
-    const n = Object.keys(claims).length;
-    if (n < 12 && !confirm(`아직 ${12 - n}개 반 선생님이 반을 고르지 않았어요. 시작할까요?`)) return;
+    const ids = activeIds();
+    if (!ids.length) { $('#ctlErr').textContent = '반을 고른 선생님이 아직 없어요. 한 반 이상 들어온 뒤 시작해 주세요.'; return; }
+    const names = CLASSES.filter((c) => ids.includes(c.id)).map((c) => c.name).join(', ');
+    if (!confirm(`${ids.length}개 반으로 시작할까요?\n${names}\n시작한 뒤에 들어온 반은 이번 게임에 참여하지 못해요.`)) return;
   }
   if (game?.phase === 'quiz_open' || game?.phase === 'store_open') {
     const kind = game.phase === 'quiz_open' ? 'quiz' : 'store';
-    const n = Object.keys(collectSubs(subs, game.round, kind)).length;
-    if (n < 12 && !confirm(`아직 ${12 - n}개 반이 내지 않았어요. 마감할까요?`)) return;
+    const total = activeIds().length;
+    const n = Object.keys(collectSubs(subs, game.round, kind, activeIds())).length;
+    if (n < total && !confirm(`아직 ${total - n}개 반이 내지 않았어요. 마감할까요?`)) return;
   }
   run(() => advance(g));
 });
@@ -146,6 +183,20 @@ $('#undoBtn').addEventListener('click', () => {
 });
 $('#plusBtn').addEventListener('click', () => run(() => extendDeadline(g, game.deadlineAt, 10)));
 $('#qrToggle').addEventListener('click', () => run(() => setShowQr(g, !game.showQr)));
+$('#tutStart').addEventListener('click', () => run(() => setTutorial(g, 0)));
+$('#tutEnd').addEventListener('click', () => run(() => setTutorial(g, null)));
+$('#tutNext').addEventListener('click', () => {
+  const t = TUTORIAL[game.tutorial];
+  if (t?.reveal && !game.tutorialReveal) run(() => setTutorial(g, game.tutorial, true));
+  else if (game.tutorial < TUTORIAL.length - 1) run(() => setTutorial(g, game.tutorial + 1));
+});
+$('#tutPrev').addEventListener('click', () => {
+  if (game.tutorialReveal) run(() => setTutorial(g, game.tutorial, false));
+  else if (game.tutorial > 0) {
+    const prev = TUTORIAL[game.tutorial - 1];
+    run(() => setTutorial(g, game.tutorial - 1, !!prev?.reveal));
+  }
+});
 $('#resetBtn').addEventListener('click', () => {
   if (confirm('모든 반을 열매 10개로 되돌리고 처음부터 시작할까요? 선생님들이 고른 반은 그대로 유지돼요.')) run(() => resetGame(g));
 });

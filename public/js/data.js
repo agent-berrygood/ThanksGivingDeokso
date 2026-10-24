@@ -5,6 +5,9 @@ export const QUIZ_REWARD = 2;
 export const ROUNDS = 8; // 계절 4 × 라운드 2
 export const QUIZ_SECONDS = 30;
 export const STORE_SECONDS = 55; // 회의 40초 + 제출 15초
+// 모든 참여 반이 각각 이만큼 이상 모으면 공동우승
+// (시뮬레이션: 모든 반이 매번 절반씩 나누면 거의 항상 넘고, 25%만 나누거나 절반의 반이 안 나누면 못 넘음)
+export const JOINT_GOAL = 100;
 
 export const GRADES = [
   { key: 'faith', name: '믿음', school: '4학년', color: '#C2410C' },
@@ -63,6 +66,29 @@ export const QUESTIONS = [
   { type: 'ox', q: '미국의 추수감사절은 11월 넷째 주 목요일이다', answer: 'O' },
   { type: 'mc', q: "영어로 '감사합니다'는?", options: ['Hello', 'Sorry', 'Thank you', 'Goodbye'], answer: '3' },
 ];
+
+// 시작 전 설명·연습 슬라이드 (reveal: '다음'을 한 번 더 눌러 정답·결과를 공개하는 슬라이드)
+export const TUTORIAL = [
+  { key: 'welcome', title: '감사 열매 농장' },
+  { key: 'round', title: '한 라운드는 이렇게' },
+  { key: 'store', title: '감사 창고 계산' },
+  { key: 'weather', title: '계절마다 날씨가 바뀌어요' },
+  { key: 'practiceQ', title: '연습 문제', reveal: true },
+  { key: 'practiceRound', title: '연습 라운드', reveal: true },
+  { key: 'danger', title: '아끼기만 하면?' },
+  { key: 'joint', title: '모두 함께 이기는 방법' },
+  { key: 'ready', title: '준비됐나요?' },
+];
+
+export const PRACTICE_QUESTION = { type: 'ox', q: '감사는 좋은 일이 있을 때만 하는 것이다', answer: 'X', note: '범사에 감사하라 (데살로니가전서 5:18)' };
+
+// 연습 라운드 예시: 4개 반이 각자 낸 열매 (모두 10개에서 시작)
+export const PRACTICE_ROUND = {
+  names: ['가 반', '나 반', '다 반', '라 반'],
+  start: 10,
+  contrib: [10, 5, 0, 10],
+  encounter: 'spring-rain',
+};
 
 export const PHASE_LABEL = {
   lobby: '시작 전',

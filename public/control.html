@@ -36,6 +36,16 @@
         <button class="btn secondary" id="undoBtn" type="button">직전 단계로 되돌리기</button>
         <button class="btn secondary" id="plusBtn" type="button">시간 +10초</button>
       </div>
+      <div class="tut-box hidden" id="tutBox">
+        <h3 style="font-size:19px">게임 설명·연습 (아무도 접속하지 않아도 돼요)</h3>
+        <div class="row">
+          <button class="btn secondary" id="tutStart" type="button">설명·연습 시작</button>
+          <button class="btn secondary hidden" id="tutPrev" type="button">◀ 이전</button>
+          <button class="btn hidden" id="tutNext" type="button">다음 ▶</button>
+          <button class="btn ghost hidden" id="tutEnd" type="button">설명 끝내기</button>
+        </div>
+        <div class="muted" id="tutLabel"></div>
+      </div>
       <p class="error" id="ctlErr"></p>
     </section>
 

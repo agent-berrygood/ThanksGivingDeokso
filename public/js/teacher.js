@@ -1,6 +1,10 @@
 import { ready, params, doc, setDoc, onSnapshot, serverTimestamp } from './fb.js';
-import { CLASSES, GRADES, ENCOUNTER_BY_KEY, QUIZ_REWARD } from './data.js';
-import { questionOf, rank, clampContribution } from './logic.js';
+import {
+  CLASSES, GRADES, ENCOUNTER_BY_KEY, QUIZ_REWARD, JOINT_GOAL,
+} from './data.js';
+import {
+  questionOf, rank, clampContribution, activeOf, jointWin,
+} from './logic.js';
 import {
   refs, subId, watch, watchClaims, claimClass,
 } from './store.js';
@@ -110,10 +114,16 @@ function resubscribe() {
   mySub = null;
   draft = null;
   if (!sk) return;
-  offSub = onSnapshot(doc(refs(g).subs, sk), (s) => {
+  const listen = () => onSnapshot(doc(refs(g).subs, sk), (s) => {
     mySub = s.exists() ? s.data() : null;
     render();
-  }, () => { /* 문서가 없으면 권한 오류가 날 수 있음 — 미제출로 본다 */ mySub = null; render(); });
+  }, () => {
+    // 반 선택이 서버에 막 반영되는 순간 등에는 거절될 수 있다 → 잠시 뒤 다시 구독
+    mySub = null;
+    render();
+    setTimeout(() => { if (subKey === sk) offSub = listen(); }, 1500);
+  });
+  offSub = listen();
 }
 
 async function submit(kind, value) {
@@ -199,10 +209,14 @@ function encounterView() {
 }
 
 function resultView() {
-  const ranked = rank(classes);
+  const act = activeOf(game);
+  const list = classes.filter((c) => act.includes(c.id));
+  const ranked = rank(list);
   const pos = ranked.findIndex((c) => c.id === classId) + 1;
-  return `<div class="big-msg">수고했어요!<br>${esc(meta.name)}은 열매 <b>${mine?.fruit ?? 0}개</b>로<br>12개 반 중 ${pos}등이에요.</div>
-    <div class="notice">창고에 나눈 열매: ${mine?.shared ?? 0}개<br>범사에 감사하라 · 데살로니가전서 5:18</div>`;
+  const joint = jointWin(list);
+  return `<div class="big-msg">수고했어요!<br>${esc(meta.name)}은 열매 <b>${mine?.fruit ?? 0}개</b>로<br>${list.length}개 반 중 ${pos}등이에요.</div>
+    ${joint ? `<div class="notice ok">모든 반이 ${JOINT_GOAL}개를 넘었어요. 모두 공동우승!</div>` : ''}
+    <div class="notice">창고에 나눈 열매: ${mine?.shared ?? 0}개<br>다른 반이 나눠 준 열매에서 받은 몫: ${mine?.fromOthers ?? 0}개<br>범사에 감사하라 · 데살로니가전서 5:18</div>`;
 }
 
 function render() {
@@ -214,8 +228,12 @@ function render() {
     return;
   }
   let html = '';
+  if (game.phase !== 'lobby' && !activeOf(game).includes(classId)) {
+    body.innerHTML = '<div class="big-msg">이번 게임은 이미 시작됐어요.<br>우리 반은 이번 게임에 참여하지 않아요.<br>다음 게임 때 함께해요!</div>';
+    return;
+  }
   switch (game.phase) {
-    case 'lobby': html = '<div class="big-msg">게임 시작을 기다리고 있어요.<br>이 화면을 켜 둔 채로 기다려 주세요.</div>'; break;
+    case 'lobby': html = `<div class="big-msg">게임 시작을 기다리고 있어요.<br>이 화면을 켜 둔 채로 기다려 주세요.</div><div class="notice">모든 반이 열매 ${JOINT_GOAL}개 이상이면 모두 공동우승이에요.</div>`; break;
     case 'quiz_open': html = quizView(true); break;
     case 'quiz_reveal': html = quizView(false); break;
     case 'store_open': html = storeView(true); break;

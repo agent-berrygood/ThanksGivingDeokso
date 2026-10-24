@@ -115,3 +115,38 @@ test('시상: 학년별 1등, 나눔상, 동점은 나눈 반 우선', () => {
   assert.equal(a.sharer.id, 'love-4');
   assert.equal(a.ranked[0].id, 'hope-2');
 });
+
+import { jointWin, activeOf, ALL_IDS } from '../public/js/logic.js';
+import { JOINT_GOAL, PRACTICE_ROUND } from '../public/js/data.js';
+
+test('2개 반만 참여: ÷2로 나눔', () => {
+  const two = ['faith-1', 'love-3'];
+  const r = applyStore({ 'faith-1': 10, 'love-3': 10 }, { 'faith-1': 10, 'love-3': 0 }, 'spring-normal', two);
+  assert.equal(r.n, 2);
+  assert.equal(r.share, 10); // 10 × 2 ÷ 2
+  assert.equal(r.perClass['faith-1'].after, 10);
+  assert.equal(r.perClass['love-3'].after, 20);
+  assert.equal(r.perClass['love-3'].fromOthers, 10); // 받은 10개 모두 다른 반 몫
+  assert.equal(r.perClass['faith-1'].fromOthers, 0);
+  assert.equal(r.perClass['hope-1'], undefined);
+});
+
+test('참여 반: 시작 전에는 전체, 시작 후에는 확정 목록', () => {
+  assert.deepEqual(activeOf(null), ALL_IDS);
+  assert.deepEqual(activeOf({ active: ['hope-2'] }), ['hope-2']);
+});
+
+test('공동우승: 모든 반이 목표 이상일 때만', () => {
+  assert.equal(JOINT_GOAL, 100);
+  assert.equal(jointWin([{ fruit: 100 }, { fruit: 250 }]), true);
+  assert.equal(jointWin([{ fruit: 99 }, { fruit: 999 }]), false);
+  assert.equal(jointWin([]), false);
+});
+
+test('연습 라운드 예시: 단비, 4개 반', () => {
+  const ids = PRACTICE_ROUND.names.map((_, i) => `p${i}`);
+  const r = applyStore(Object.fromEntries(ids.map((id) => [id, 10])), Object.fromEntries(ids.map((id, i) => [id, PRACTICE_ROUND.contrib[i]])), PRACTICE_ROUND.encounter, ids);
+  assert.equal(r.X, 25);
+  assert.equal(r.share, 18); // 75 ÷ 4
+  assert.deepEqual(ids.map((id) => r.perClass[id].after), [18, 23, 28, 18]);
+});
