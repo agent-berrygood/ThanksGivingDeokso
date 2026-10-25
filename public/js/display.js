@@ -77,7 +77,7 @@ function renderBoard() {
 }
 
 function chipsHtml(mode) {
-  const q = questionOf(game.round);
+  const q = questionOf(game.round, game.qset);
   const act = activeIds();
   const kind = mode === 'reveal' ? 'quiz' : openKind() || (game.phase === 'store_locked' ? 'store' : null);
   const sent = kind ? collectSubs(subs, game.round, kind, act) : {};
@@ -195,7 +195,7 @@ function tutorialHtml(step, reveal) {
 
 function renderStage() {
   const s = $('#stage');
-  const q = questionOf(game.round);
+  const q = questionOf(game.round, game.qset);
   const season = seasonOf(game.round);
   const N = activeIds().length;
   if (game.phase === 'lobby' && game.tutorial !== null && game.tutorial !== undefined && TUTORIAL[game.tutorial]) {

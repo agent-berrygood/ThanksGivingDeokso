@@ -1,6 +1,6 @@
 // 감사 열매 농장 — 순수 게임 로직 (브라우저·node 공용, Firebase 의존 없음)
 import {
-  CLASSES, ENCOUNTERS, ENCOUNTER_BY_KEY, START_FRUIT, QUIZ_REWARD, ROUNDS, QUESTIONS, JOINT_GOAL,
+  CLASSES, ENCOUNTERS, ENCOUNTER_BY_KEY, START_FRUIT, QUIZ_REWARD, ROUNDS, JOINT_GOAL, questionsOf,
 } from './data.js';
 
 export const ALL_IDS = CLASSES.map((c) => c.id);
@@ -9,7 +9,7 @@ export const activeOf = (game) => (game?.active?.length ? game.active : ALL_IDS)
 
 export const seasonOf = (round) => Math.floor(round / 2);
 export const roundInSeason = (round) => (round % 2) + 1;
-export const questionOf = (round) => QUESTIONS[round];
+export const questionOf = (round, qset) => questionsOf(qset)[round];
 
 // 정수 0..fruit 로 맞춤
 export function clampContribution(value, fruit) {

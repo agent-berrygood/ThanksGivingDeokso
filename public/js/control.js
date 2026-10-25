@@ -1,11 +1,11 @@
 import { ready, params } from './fb.js';
 import {
-  QUESTIONS, ENCOUNTERS, SEASONS, CLASSES, TUTORIAL, JOINT_GOAL,
+  QUESTION_SETS, QSET_BY_KEY, DEFAULT_QSET, questionsOf, ENCOUNTERS, SEASONS, CLASSES, TUTORIAL, JOINT_GOAL,
 } from './data.js';
 import { NEXT_LABEL, questionOf, seasonOf, activeOf } from './logic.js';
 import {
   watch, watchClaims, advance, undo, resetGame, adjustFruit, extendDeadline, setShowQr, isAdmin,
-  loadJoinKey, collectSubs, releaseClass, joinUrl, qrSvg, rememberSession, setTutorial,
+  loadJoinKey, collectSubs, releaseClass, joinUrl, qrSvg, rememberSession, setTutorial, setQset,
 } from './store.js';
 import { $, esc, roundLabel, phaseLabel, startTicker, keepLabel } from './ui.js';
 
@@ -51,7 +51,7 @@ function currentKind() {
 
 function previewText() {
   if (!game) return '불러오는 중…';
-  const q = questionOf(game.round);
+  const q = questionOf(game.round, game.qset);
   const optText = (qq) => (qq.type === 'ox' ? 'O / X' : qq.options.map((o, i) => `${i + 1}) ${o}`).join('  '));
   const answerText = (qq) => (qq.type === 'ox' ? qq.answer : `${qq.answer}번 ${qq.options[Number(qq.answer) - 1]}`);
   const joined = Object.keys(claims).length;
@@ -78,6 +78,15 @@ function previewText() {
   }
 }
 
+let qListFor = '';
+function renderQList(qs) {
+  if (qListFor === qs) return;
+  qListFor = qs;
+  $('#qList').innerHTML = `<h3 style="font-size:20px;margin-bottom:8px">감사 농사 문제 · ${esc(QSET_BY_KEY[qs].name)}</h3><ol style="margin:0;padding-left:22px;line-height:1.7">${
+  questionsOf(qs).map((q, i) => `<li><b>${SEASONS[Math.floor(i / 2)]} ${(i % 2) + 1}</b> ${esc(q.q)} → <b>${
+    q.type === 'ox' ? q.answer : `${q.answer}) ${esc(q.options[Number(q.answer) - 1])}`}</b></li>`).join('')}</ol>`;
+}
+
 function render() {
   if (!game) return;
   $('#roundLabel').textContent = roundLabel(game);
@@ -97,6 +106,11 @@ function render() {
   const tut = game.tutorial;
   const inTut = tut !== null && tut !== undefined;
   $('#tutBox').classList.toggle('hidden', game.phase !== 'lobby');
+  $('#qsetBox').classList.toggle('hidden', game.phase !== 'lobby');
+  const qs = QSET_BY_KEY[game.qset] ? game.qset : DEFAULT_QSET;
+  if ($('#qsetSel').value !== qs) $('#qsetSel').value = qs;
+  $('#qsetSel').disabled = busy;
+  renderQList(qs);
   $('#tutStart').classList.toggle('hidden', inTut);
   ['#tutPrev', '#tutNext', '#tutEnd'].forEach((s) => $(s).classList.toggle('hidden', !inTut));
   if (inTut) {
@@ -117,7 +131,7 @@ function render() {
   $('#subCount').textContent = kind ? `제출 ${count}/${act.length}` : '';
   $('#subCount').classList.toggle('hidden', !kind);
 
-  const q = questionOf(game.round);
+  const q = questionOf(game.round, game.qset);
   $('#classRows').innerHTML = classes.map((c) => {
     const inGame = game.phase === 'lobby' || act.includes(c.id);
     if (!inGame) {
@@ -225,9 +239,11 @@ $('#joinLink').href = link;
 $('#joinLink').textContent = link;
 
 // 미리 보기 목록
-$('#qList').innerHTML = `<h3 style="font-size:20px;margin-bottom:8px">감사 농사 문제</h3><ol style="margin:0;padding-left:22px;line-height:1.7">${
-  QUESTIONS.map((q, i) => `<li><b>${SEASONS[Math.floor(i / 2)]} ${(i % 2) + 1}</b> ${esc(q.q)} → <b>${
-    q.type === 'ox' ? q.answer : `${q.answer}) ${esc(q.options[Number(q.answer) - 1])}`}</b></li>`).join('')}</ol>`;
+$('#qsetSel').innerHTML = QUESTION_SETS.map((x) => `<option value="${x.key}">${esc(x.name)}</option>`).join('');
+$('#qsetSel').addEventListener('change', (e) => {
+  const v = e.target.value; // render()가 값을 되돌리기 전에 읽어 둔다
+  run(() => setQset(g, v));
+});
 $('#encList').innerHTML = `<h3 style="font-size:20px;margin-bottom:8px">계절별 인카운터</h3>${
   ENCOUNTERS.map((list, s) => `<p style="margin:0 0 6px"><b>${SEASONS[s]}</b> ${
     list.map((e) => `${esc(e.name)}(×${e.mult}${e.keep !== 1 ? `, ${keepLabel(e.keep)}` : ''})`).join(' · ')}</p>`).join('')}`;

@@ -3,7 +3,9 @@ import {
   db, doc, collection, getDoc, getDocs, setDoc, deleteDoc, writeBatch, query, orderBy, limit, onSnapshot, serverTimestamp,
   getDocFromServer, getDocsFromServer,
 } from './fb.js';
-import { CLASSES, START_FRUIT, QUIZ_SECONDS, STORE_SECONDS } from './data.js';
+import {
+  CLASSES, START_FRUIT, QUIZ_SECONDS, STORE_SECONDS, DEFAULT_QSET, QSET_BY_KEY,
+} from './data.js';
 import {
   nextPhase, scoreQuiz, applyStore, drawEncounter, questionOf, randomToken, activeOf,
 } from './logic.js';
@@ -47,9 +49,12 @@ export async function createSession(uid) {
 export async function resetGame(g) {
   const r = refs(g);
   let key = null;
+  let qset = DEFAULT_QSET;
   try {
     const k = await getDoc(r.joinKey);
     if (k.exists()) key = k.data().token;
+    const prev = await getDoc(r.game);
+    if (prev.exists() && QSET_BY_KEY[prev.data().qset]) qset = prev.data().qset;
   } catch (e) { /* 새 세션 */ }
   const [subSnap, snapSnap] = await Promise.all([getDocs(r.subs), getDocs(r.snaps)]);
   const stale = [...subSnap.docs, ...snapSnap.docs];
@@ -61,7 +66,7 @@ export async function resetGame(g) {
   const b = writeBatch(db);
   b.set(r.game, {
     phase: 'lobby', round: 0, deadlineAt: null, history: [], last: null, showQr: false,
-    active: null, tutorial: null, tutorialReveal: false, updatedAt: serverTimestamp(),
+    active: null, tutorial: null, tutorialReveal: false, qset, updatedAt: serverTimestamp(),
   });
   for (const c of CLASSES) {
     b.set(doc(r.classes, c.id), {
@@ -101,6 +106,14 @@ export function collectSubs(subDocs, round, kind, only = null) {
     out[s.classId] = s.value;
   }
   return out;
+}
+
+// 문제 세트 고르기 (시작 전에만)
+export async function setQset(g, qset) {
+  if (!QSET_BY_KEY[qset]) throw new Error('없는 문제 세트예요.');
+  const b = writeBatch(db);
+  b.update(refs(g).game, { qset });
+  await b.commit();
 }
 
 // 설명·연습 슬라이드 (게임 시작 전, 접속 없이)
@@ -157,7 +170,7 @@ export async function advance(g, rng = Math.random) {
   }
 
   if (next.phase === 'quiz_reveal') {
-    const q = questionOf(game.round);
+    const q = questionOf(game.round, game.qset);
     const answers = collectSubs(subs, game.round, 'quiz', active);
     const delta = scoreQuiz(answers, q.answer, active);
     for (const id of active) {

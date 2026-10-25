@@ -150,3 +150,31 @@ test('연습 라운드 예시: 단비, 4개 반', () => {
   assert.equal(r.share, 18); // 75 ÷ 4
   assert.deepEqual(ids.map((id) => r.perClass[id].after), [18, 23, 28, 18]);
 });
+
+import { QUESTION_SETS, DEFAULT_QSET } from '../public/js/data.js';
+import { questionOf } from '../public/js/logic.js';
+
+test('문제 세트: 세트마다 8문제, 계절마다 O/X + 4지선다, 정답 형식', () => {
+  assert.equal(DEFAULT_QSET, 'set2');
+  for (const s of QUESTION_SETS) {
+    assert.equal(s.questions.length, 8, s.key);
+    s.questions.forEach((q, i) => {
+      assert.equal(q.type, i % 2 === 0 ? 'ox' : 'mc');
+      if (q.type === 'ox') assert.ok(['O', 'X'].includes(q.answer));
+      else {
+        assert.equal(q.options.length, 4);
+        assert.ok(['1', '2', '3', '4'].includes(q.answer));
+      }
+    });
+  }
+  const set2 = QUESTION_SETS[0].questions;
+  assert.ok(set2.some((q) => q.answer === 'X'), '새 세트에는 X 정답도 있다');
+  const set1Texts = new Set(QUESTION_SETS[1].questions.map((q) => q.q));
+  assert.ok(set2.every((q) => !set1Texts.has(q.q)), '새 세트는 이전 문제와 겹치지 않는다');
+});
+
+test('questionOf: 세트 지정, 없으면 기본 세트', () => {
+  assert.equal(questionOf(0).q, QUESTION_SETS[0].questions[0].q);
+  assert.equal(questionOf(0, 'set1').q, '씨앗이 싹트려면 물이 필요하다');
+  assert.equal(questionOf(2, 'nope').answer, 'X');
+});

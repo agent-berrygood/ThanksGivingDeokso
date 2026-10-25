@@ -55,17 +55,43 @@ export const ENCOUNTERS = [
 
 export const ENCOUNTER_BY_KEY = Object.fromEntries(ENCOUNTERS.flat().map((e) => [e.key, e]));
 
-// 라운드 순서대로 8문제: 계절마다 O/X 1개(라운드 1) + 4지선다 1개(라운드 2)
-export const QUESTIONS = [
-  { type: 'ox', q: '씨앗이 싹트려면 물이 필요하다', answer: 'O' },
-  { type: 'mc', q: '봄꽃이 아닌 것은?', options: ['개나리', '진달래', '벚꽃', '국화'], answer: '4' },
-  { type: 'ox', q: '수박은 여름에 나는 과일이다', answer: 'O' },
-  { type: 'mc', q: '여름 과일이 아닌 것은?', options: ['수박', '참외', '복숭아', '귤'], answer: '4' },
-  { type: 'ox', q: '추석은 음력 8월 15일이다', answer: 'O' },
-  { type: 'mc', q: '우리가 먹는 쌀은 어떤 식물에서 얻을까요?', options: ['보리', '벼', '밀', '옥수수'], answer: '2' },
-  { type: 'ox', q: '미국의 추수감사절은 11월 넷째 주 목요일이다', answer: 'O' },
-  { type: 'mc', q: "영어로 '감사합니다'는?", options: ['Hello', 'Sorry', 'Thank you', 'Goodbye'], answer: '3' },
+// 문제 세트: 라운드 순서대로 8문제, 계절마다 O/X 1개(라운드 1) + 4지선다 1개(라운드 2)
+// 진행자 컨트롤의 시작 전 화면에서 세트를 고른다. 첫 번째 세트가 기본값.
+export const QUESTION_SETS = [
+  {
+    key: 'set2',
+    name: '2회차 문제',
+    questions: [
+      { type: 'ox', q: '개구리는 겨울잠을 자고 봄에 깨어난다', answer: 'O' },
+      { type: 'mc', q: '꽃의 꿀을 모으며 꽃가루를 옮겨 주는 곤충은?', options: ['꿀벌', '모기', '바퀴벌레', '무당벌레'], answer: '1' },
+      { type: 'ox', q: '여름에는 겨울보다 낮이 짧다', answer: 'X' },
+      { type: 'mc', q: '비가 그친 뒤 하늘에 생기는 일곱 빛깔 띠는?', options: ['구름', '번개', '무지개', '안개'], answer: '3' },
+      { type: 'ox', q: '가을에 단풍이 들면 나뭇잎이 초록색으로 바뀐다', answer: 'X' },
+      { type: 'mc', q: '추석을 대표하는 음식은?', options: ['떡국', '송편', '팥죽', '냉면'], answer: '2' },
+      { type: 'ox', q: '벼를 거두어 껍질을 벗기면 쌀이 된다', answer: 'O' },
+      { type: 'mc', q: '고마운 마음을 전하는 말이 아닌 것은?', options: ['감사합니다', '고마워요', '덕분이에요', '미안해요'], answer: '4' },
+    ],
+  },
+  {
+    key: 'set1',
+    name: '1회차 문제',
+    questions: [
+      { type: 'ox', q: '씨앗이 싹트려면 물이 필요하다', answer: 'O' },
+      { type: 'mc', q: '봄꽃이 아닌 것은?', options: ['개나리', '진달래', '벚꽃', '국화'], answer: '4' },
+      { type: 'ox', q: '수박은 여름에 나는 과일이다', answer: 'O' },
+      { type: 'mc', q: '여름 과일이 아닌 것은?', options: ['수박', '참외', '복숭아', '귤'], answer: '4' },
+      { type: 'ox', q: '추석은 음력 8월 15일이다', answer: 'O' },
+      { type: 'mc', q: '우리가 먹는 쌀은 어떤 식물에서 얻을까요?', options: ['보리', '벼', '밀', '옥수수'], answer: '2' },
+      { type: 'ox', q: '미국의 추수감사절은 11월 넷째 주 목요일이다', answer: 'O' },
+      { type: 'mc', q: "영어로 '감사합니다'는?", options: ['Hello', 'Sorry', 'Thank you', 'Goodbye'], answer: '3' },
+    ],
+  },
 ];
+export const DEFAULT_QSET = QUESTION_SETS[0].key;
+export const QSET_BY_KEY = Object.fromEntries(QUESTION_SETS.map((s) => [s.key, s]));
+// 기본 세트의 문제 (예전 코드·테스트 호환)
+export const QUESTIONS = QUESTION_SETS[0].questions;
+export const questionsOf = (qset) => (QSET_BY_KEY[qset] || QUESTION_SETS[0]).questions;
 
 // 시작 전 설명·연습 슬라이드 (reveal: '다음'을 한 번 더 눌러 정답·결과를 공개하는 슬라이드)
 export const TUTORIAL = [

@@ -151,7 +151,7 @@ function headRender() {
 }
 
 function quizView(open) {
-  const q = questionOf(game.round);
+  const q = questionOf(game.round, game.qset);
   const chosen = mySub?.value;
   const opts = q.type === 'ox' ? [['O', 'O'], ['X', 'X']] : q.options.map((o, i) => [String(i + 1), `${i + 1}. ${o}`]);
   if (!open) {
