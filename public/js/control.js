@@ -64,11 +64,11 @@ function previewText() {
       }
       return `출력 창을 프로젝터에 띄우면 참여 QR이 보여요. 지금 ${joined}개 반이 반을 골랐어요. 게임은 <b>시작할 때 반을 고른 반만</b> 참여해요. 공동우승 목표는 모든 반 ${JOINT_GOAL}개 이상이에요.`;
     case 'justice_open':
-      return `정의 창고 시간이에요. 반마다 친구들이 한 명씩 숫자를 누르면 평균(버림)이 제출돼요. 지금 이웃 마을 <b>${game.villages || 0}개</b>(누적 ${game.justiceTotal || 0}개, ${JUSTICE_PER_VILLAGE}개마다 1마을). 1개 이상 낸 반만 이번 라운드 감사 농사 배율이 마을당 +${VILLAGE_BONUS} 올라가요. 마감하면 바로 감사 농사 문제가 나와요.`;
+      return `정의 창고 시간이에요. 반마다 친구들이 한 명씩 숫자를 누르면 평균(버림)이 제출돼요. 지금 이웃 마을 <b>${game.villages || 0}개</b>(누적 ${game.justiceTotal || 0}개, ${JUSTICE_PER_VILLAGE}개마다 1마을). 이번에 새로 생기는 마을은 1개 이상 낸 반의 '우리 반 마을'이 돼요. 1개 이상 낸 반만 이번 라운드 감사 농사 배율이 우리 반 마을당 +${VILLAGE_BONUS} 올라가요. 마감하면 바로 감사 농사 문제가 나와요.`;
     case 'quiz_open':
       return `<b>문제</b> ${esc(q.q)}<br>${esc(optText(q))}<br><b>정답</b> ${esc(answerText(q))}<br>반이 의논해서 선생님 휴대폰으로 답을 내요. 다 내면 정답을 공개하세요.`;
     case 'quiz_reveal':
-      return `맞힌 반은 이번 추수에 남긴 열매가 ×${FARM_MULT}(정의 창고에 낸 반은 이웃 마을 ${game.villages || 0}개만큼 더)로 불어나요. 열매는 날씨를 공개할 때 바뀌어요. 이제 창고 회의를 시작하세요.`;
+      return `맞힌 반은 이번 추수에 남긴 열매가 ×${FARM_MULT}(정의 창고에 낸 반은 우리 반 마을 1개당 +${VILLAGE_BONUS})로 불어나요. 열매는 날씨를 공개할 때 바뀌어요. 이제 창고 회의를 시작하세요.`;
     case 'store_open':
       return '좋음·보통·나쁨 날씨를 보여 주며 회의 시간을 주세요. 반마다 친구들이 한 명씩 숫자를 누르고 평균(버림)을 제출해요. 숫자는 출력 화면에 보이지 않아요.';
     case 'store_locked':
@@ -159,7 +159,7 @@ function render() {
       <td><span class="dot"></span>${esc(c.name)}</td>
       <td>${joined}</td>
       <td class="num"><b>${c.fruit}</b></td>
-      <td class="num">${c.shared || 0}</td>
+      <td class="num">${c.shared || 0}${c.villages ? `<br><small class="muted">마을 ${c.villages}</small>` : ''}</td>
       <td>${cell}</td>
       <td><button class="mini-btn" data-adj="${c.id}" data-d="-1" type="button" aria-label="${esc(c.name)} 열매 1 빼기">−</button>
           <button class="mini-btn" data-adj="${c.id}" data-d="1" type="button" aria-label="${esc(c.name)} 열매 1 더하기">+</button></td>

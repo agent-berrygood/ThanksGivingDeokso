@@ -210,3 +210,25 @@ test('questionOf: 세트 지정, 없으면 기본 세트', () => {
   assert.equal(questionOf(0, 'set1').q, '씨앗이 싹트려면 물이 필요하다');
   assert.equal(questionOf(2, 'nope').answer, 'X');
 });
+
+test('정의 창고: 새 마을은 그 라운드에 낸 반만 얻는다 (늦게 내면 지난 마을은 없음)', () => {
+  // 1라운드: 1~11반 1개씩(사랑 4반 0) → 누적 11, 마을 0
+  const g1 = all(1);
+  g1['love-4'] = 0;
+  const r1 = applyJustice(all(10), g1, 0, ids, {});
+  assert.equal(r1.villages, 0);
+  // 2라운드: 같은 반들이 1개씩 → 누적 22, 마을 1 → 1~11반만 얻음
+  const mine1 = Object.fromEntries(ids.map((id) => [id, r1.perClass[id].villages]));
+  const r2 = applyJustice(all(10), g1, r1.total, ids, mine1);
+  assert.equal(r2.built, 1);
+  assert.equal(r2.perClass['faith-1'].villages, 1);
+  assert.equal(r2.perClass['love-4'].villages, 0);
+  // 3라운드: 12개 반 모두 1개 → 누적 34, 마을 2 → 새 마을 1개는 모두 얻음
+  const mine2 = Object.fromEntries(ids.map((id) => [id, r2.perClass[id].villages]));
+  const r3 = applyJustice(all(10), all(1), r2.total, ids, mine2);
+  assert.equal(r3.villages, 2);
+  assert.equal(r3.perClass['faith-1'].villages, 2);
+  assert.equal(r3.perClass['love-4'].villages, 1);
+  assert.equal(farmMult(true, true, r3.perClass['love-4'].villages), 2.1);
+  assert.equal(farmMult(true, true, r3.perClass['faith-1'].villages), 2.2);
+});

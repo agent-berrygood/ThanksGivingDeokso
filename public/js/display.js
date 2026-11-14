@@ -73,6 +73,7 @@ function renderBoard() {
           <div><div class="name">${esc(c.no)}반</div>${badge}</div>
           ${dHtml}
           <div class="fruit">${c.fruit}<small>개</small></div>
+          ${c.villages ? `<div class="vill">🏘️${c.villages}</div>` : ''}
         </div>`;
       }).join('')}
     </div>`).join('');
@@ -155,8 +156,9 @@ function tutorialHtml(step, reveal) {
       return `${head}
         <p class="sub">라운드가 시작될 때마다 <b>정의 창고</b>에 열매를 낼 수 있어요. 낸 열매는 돌아오지 않아요.</p>
         <div class="calc">모든 반이 낸 열매가 ${JUSTICE_PER_VILLAGE}개 모일 때마다 <b>이웃 마을 1개</b></div>
-        <p class="sub">그 라운드에 <b>1개라도 낸 반</b>은 감사 농사 배율이 이웃 마을 1개당 <b>+${VILLAGE_BONUS}</b> (×${FARM_MULT} → ×${FARM_MULT + VILLAGE_BONUS} → …). 많이 내도 1개 내도 혜택은 같아요.</p>
-        <p class="sub"><span class="warn">0개를 낸 반은 이웃의 도움을 하나도 받지 못해요.</span></p>`;
+        <p class="sub">마을이 생긴 라운드에 <b>1개라도 낸 반</b>만 그 마을을 <b>우리 반 마을</b>로 얻어요. 많이 내도 1개 내도 똑같이 얻어요.</p>
+        <p class="sub">감사 농사 배율은 우리 반 마을 1개당 <b>+${VILLAGE_BONUS}</b> (×${FARM_MULT} → ×${FARM_MULT + VILLAGE_BONUS} → …). 늦게 내기 시작하면 그 전에 생긴 마을은 얻지 못해요.</p>
+        <p class="sub"><span class="warn">그 라운드에 0개를 낸 반은 이웃의 도움을 받지 못해요.</span></p>`;
     case 'weather':
       return `${head}
         ${poolHtml()}
@@ -235,7 +237,7 @@ function renderStage() {
         <div class="row" style="justify-content:space-between"><h2>정의 창고: 이웃 마을에 얼마를 나눌까요?</h2><div class="timer" id="timer"></div></div>
         <div class="calc">이웃 마을 <b>${v}개</b> · 다음 마을까지 ${toNext}개</div>
         <p class="sub" style="font-size:5vh;margin:1vh 0">${villageRow(v)}</p>
-        <p class="sub" style="margin:0">1개라도 낸 반: 감사 농사 배율 <b>×${Math.round((FARM_MULT + VILLAGE_BONUS * v) * 100) / 100}</b> 이상 · <span class="warn">0개면 ×${FARM_MULT}</span></p>
+        <p class="sub" style="margin:0">1개라도 낸 반은 이번에 생기는 마을도 <b>우리 반 마을</b>이 되고, 감사 농사 배율이 우리 반 마을 1개당 +${VILLAGE_BONUS} · <span class="warn">0개면 이번 라운드 ×${FARM_MULT}</span></p>
         ${chipsHtml('sent')}`;
       break;
     }
@@ -243,7 +245,7 @@ function renderStage() {
     case 'quiz_reveal': {
       const reveal = game.phase === 'quiz_reveal';
       s.innerHTML = `
-        <div class="row" style="justify-content:space-between"><p class="sub" style="margin:0">감사 농사 · 맞히면 남긴 열매 ×${FARM_MULT}${game.villages ? ` (정의 창고에 낸 반은 ×${Math.round((FARM_MULT + VILLAGE_BONUS * game.villages) * 100) / 100})` : ''}${game.phase === 'quiz_open' && game.last?.justice ? ` · 이웃 마을 ${game.villages || 0}개` : ''}</p>${reveal ? '' : '<div class="timer" id="timer"></div>'}</div>
+        <div class="row" style="justify-content:space-between"><p class="sub" style="margin:0">감사 농사 · 맞히면 남긴 열매 ×${FARM_MULT}${game.villages ? ` (정의 창고에 낸 반은 우리 반 마을 1개당 +${VILLAGE_BONUS})` : ''}${game.phase === 'quiz_open' && game.last?.justice ? ` · 이웃 마을 ${game.villages || 0}개` : ''}</p>${reveal ? '' : '<div class="timer" id="timer"></div>'}</div>
         <h2>${esc(q.q)}</h2>
         ${optionsHtml(q, reveal)}
         ${chipsHtml(reveal ? 'reveal' : 'sent')}`;

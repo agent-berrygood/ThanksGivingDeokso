@@ -71,7 +71,7 @@ export async function resetGame(g) {
   for (const c of CLASSES) {
     b.set(doc(r.classes, c.id), {
       grade: c.grade, no: c.no, name: c.name, order: c.order,
-      fruit: START_FRUIT, shared: 0, justice: 0, correct: 0, received: 0, fromOthers: 0,
+      fruit: START_FRUIT, shared: 0, justice: 0, villages: 0, correct: 0, received: 0, fromOthers: 0,
     });
   }
   if (!key) b.set(r.joinKey, { token: randomToken(12) });
@@ -173,16 +173,20 @@ export async function advance(g, rng = Math.random) {
   if (next.phase === 'quiz_open') {
     const gifts = collectSubs(subs, game.round, 'justice', active);
     const fruits = Object.fromEntries(active.map((id) => [id, classes[id].fruit]));
-    const res = applyJustice(fruits, gifts, game.justiceTotal || 0, active);
+    const mine = Object.fromEntries(active.map((id) => [id, classes[id].villages || 0]));
+    const res = applyJustice(fruits, gifts, game.justiceTotal || 0, active, mine);
     for (const id of active) {
       const p = res.perClass[id];
       if (!p.g) continue;
-      b.update(doc(r.classes, id), { fruit: p.after, justice: (classes[id].justice || 0) + p.g });
+      b.update(doc(r.classes, id), {
+        fruit: p.after, justice: (classes[id].justice || 0) + p.g, villages: p.villages,
+      });
     }
     Object.assign(entry(game.round), {
       justice: Object.fromEntries(active.map((id) => [id, res.perClass[id].g])),
       eligible: active.filter((id) => res.perClass[id].eligible),
       villages: res.villages,
+      mine: Object.fromEntries(active.map((id) => [id, res.perClass[id].villages])),
     });
     update.history = history;
     update.justiceTotal = res.total;
@@ -198,7 +202,7 @@ export async function advance(g, rng = Math.random) {
     const ok = scoreQuiz(answers, q.answer, active);
     const h = entry(game.round);
     const elig = new Set(h.eligible || []);
-    const mult = Object.fromEntries(active.map((id) => [id, farmMult(ok[id], elig.has(id), h.villages || 0)]));
+    const mult = Object.fromEntries(active.map((id) => [id, farmMult(ok[id], elig.has(id), h.mine?.[id] || 0)]));
     for (const id of active) {
       if (ok[id]) b.update(doc(r.classes, id), { correct: (classes[id].correct || 0) + 1 });
     }

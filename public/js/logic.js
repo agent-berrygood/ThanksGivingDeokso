@@ -44,8 +44,9 @@ export function scoreQuiz(answers, correct, classIds = CLASSES.map((c) => c.id))
 export const villagesOf = (justiceTotal) => Math.floor((justiceTotal || 0) / JUSTICE_PER_VILLAGE);
 
 // 이번 라운드 정의 창고에 낸 열매를 빼고, 누적·이웃 마을 수를 계산한다
-// fruits: { id: 보유 }, gifts: { id: 낸 수 }, prevTotal: 지난 라운드까지 누적
-export function applyJustice(fruits, gifts, prevTotal = 0, classIds = CLASSES.map((c) => c.id)) {
+// 이번 라운드에 새로 생긴 마을은 이번 라운드에 1개 이상 낸 반의 '우리 반 마을'이 된다
+// fruits: { id: 보유 }, gifts: { id: 낸 수 }, prevTotal: 지난 라운드까지 누적, mine: { id: 지금까지 우리 반 마을 }
+export function applyJustice(fruits, gifts, prevTotal = 0, classIds = CLASSES.map((c) => c.id), mine = {}) {
   const perClass = {};
   let added = 0;
   for (const id of classIds) {
@@ -55,10 +56,17 @@ export function applyJustice(fruits, gifts, prevTotal = 0, classIds = CLASSES.ma
     perClass[id] = { before, g, after: before - g, eligible: g >= 1 };
   }
   const total = (prevTotal || 0) + added;
-  return { added, total, villages: villagesOf(total), perClass };
+  const villages = villagesOf(total);
+  const built = villages - villagesOf(prevTotal || 0);
+  for (const id of classIds) {
+    const p = perClass[id];
+    p.credit = p.eligible ? built : 0;
+    p.villages = (mine[id] || 0) + p.credit;
+  }
+  return { added, total, villages, built, perClass };
 }
 
-// 감사 농사 배율: 맞힌 반만. 이번 라운드 정의 창고에 낸 반은 이웃 마을 1개당 +0.1
+// 감사 농사 배율: 맞힌 반만. 이번 라운드 정의 창고에 낸 반은 우리 반 마을 1개당 +0.1
 export function farmMult(correct, eligible, villages) {
   if (!correct) return 1;
   return Math.round((FARM_MULT + (eligible ? VILLAGE_BONUS * villages : 0)) * 100) / 100;

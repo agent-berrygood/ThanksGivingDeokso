@@ -211,3 +211,5 @@ table.demo th { font-family: var(--display); font-weight: 400; color: var(--mute
 .big-msg { font-family: var(--display); font-size: 24px; text-align: center; padding: 24px 8px; line-height: 1.5; }
 .t-result { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; font-size: 18px; }
 .t-result b { font-family: var(--display); font-weight: 400; text-align: right; }
+
+.cls .vill { font-size: 2vh; opacity: .85; }

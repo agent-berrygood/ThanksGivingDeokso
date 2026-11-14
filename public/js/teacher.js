@@ -118,7 +118,8 @@ function saveEntries() {
 // 이번 라운드 기록 (정의 창고 자격, 이웃 마을 수)
 const roundEntry = () => (game?.history || []).find((h) => h.round === game.round) || {};
 const myEligible = () => (roundEntry().eligible || []).includes(classId);
-const myMult = () => farmMult(true, myEligible(), roundEntry().villages ?? game?.villages ?? 0);
+const myVillages = () => roundEntry().mine?.[classId] ?? mine?.villages ?? 0;
+const myMult = () => farmMult(true, myEligible(), myVillages());
 
 // 이번 라운드·종류의 내 제출 문서를 구독 (새로고침해도 제출 상태가 보인다)
 function resubscribe() {
@@ -218,9 +219,10 @@ function inputBox(kind, title, hint) {
 
 function justiceView() {
   const v = game.villages || 0;
+  const mineV = mine?.villages || 0;
   const total = game.justiceTotal || 0;
   const toNext = JUSTICE_PER_VILLAGE - (total % JUSTICE_PER_VILLAGE);
-  const hint = `지금 이웃 마을 <b>${v}개</b> · 다음 마을까지 ${toNext}개<br>이번 라운드에 <b>1개 이상</b> 내면, 감사 농사를 맞혔을 때 배율이 ×${FARM_MULT} + 이웃 마을 1개당 ${VILLAGE_BONUS}만큼 올라가요. 0개면 이웃의 도움을 받지 못해요. 낸 열매는 돌아오지 않아요.`;
+  const hint = `우리 반 마을 <b>${mineV}개</b> · 전체 이웃 마을 ${v}개 · 다음 마을까지 ${toNext}개<br>이번 라운드에 <b>1개 이상</b> 내면, 이번에 새로 생기는 마을도 우리 반 마을이 되고, 감사 농사를 맞혔을 때 배율이 ×${FARM_MULT} + 우리 반 마을 1개당 ${VILLAGE_BONUS}가 돼요. 0개면 이번 라운드는 이웃의 도움을 받지 못해요. 낸 열매는 돌아오지 않아요.`;
   return inputBox('justice', '정의 창고에 몇 개를 낼까요?', hint);
 }
 
@@ -260,7 +262,7 @@ function resultView() {
   const joint = jointWin(list);
   return `<div class="big-msg">수고했어요!<br>${esc(meta.name)}은 열매 <b>${mine?.fruit ?? 0}개</b>로<br>${list.length}개 반 중 ${pos}등이에요.</div>
     ${joint ? `<div class="notice ok">모든 반이 ${JOINT_GOAL}개를 넘었어요. 모두 공동우승!</div>` : ''}
-    <div class="notice">감사 창고에 나눈 열매: ${mine?.shared ?? 0}개<br>정의 창고에 낸 열매: ${mine?.justice ?? 0}개 (이웃 마을 ${game.villages || 0}개)<br>다른 반이 나눠 준 열매에서 받은 몫: ${mine?.fromOthers ?? 0}개<br>범사에 감사하라 · 데살로니가전서 5:18</div>`;
+    <div class="notice">감사 창고에 나눈 열매: ${mine?.shared ?? 0}개<br>정의 창고에 낸 열매: ${mine?.justice ?? 0}개 (우리 반 마을 ${mine?.villages ?? 0}개 / 전체 ${game.villages || 0}개)<br>다른 반이 나눠 준 열매에서 받은 몫: ${mine?.fromOthers ?? 0}개<br>범사에 감사하라 · 데살로니가전서 5:18</div>`;
 }
 
 function render() {
