@@ -144,7 +144,7 @@ function tutorialHtml(step, reveal) {
     case 'store':
       return `${head}
         <div class="calc">반마다 받는 열매 = 창고 합계 × 날씨 배수 ÷ 참여한 반 수</div>
-        <p class="sub">예) 12개 반이 모두 10개씩 넣고 '보통 날씨(×2)'가 오면 → 120 × 2 ÷ 12 = <b>반마다 20개</b></p>
+        <p class="sub">예) 12개 반이 모두 10개씩 넣고 '좋음 날씨(×2)'가 오면 → 120 × 2 ÷ 12 = <b>반마다 20개</b></p>
         <p class="sub">한 반만 0개를 넣으면 → 110 × 2 ÷ 12 = 18개씩. 넣은 반은 18개, 안 넣은 반은 10 + 18 = 28개!</p>`;
     case 'farm':
       return `${head}
