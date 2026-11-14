@@ -4,10 +4,10 @@ import {
   getDocFromServer, getDocsFromServer,
 } from './fb.js';
 import {
-  CLASSES, START_FRUIT, QUIZ_SECONDS, STORE_SECONDS, DEFAULT_QSET, QSET_BY_KEY,
+  CLASSES, START_FRUIT, QUIZ_SECONDS, STORE_SECONDS, JUSTICE_SECONDS, DEFAULT_QSET, QSET_BY_KEY,
 } from './data.js';
 import {
-  nextPhase, scoreQuiz, applyStore, drawEncounter, questionOf, randomToken, activeOf,
+  nextPhase, scoreQuiz, applyStore, applyJustice, farmMult, drawEncounter, questionOf, randomToken, activeOf,
 } from './logic.js';
 
 export const refs = (g) => ({
@@ -66,12 +66,12 @@ export async function resetGame(g) {
   const b = writeBatch(db);
   b.set(r.game, {
     phase: 'lobby', round: 0, deadlineAt: null, history: [], last: null, showQr: false,
-    active: null, tutorial: null, tutorialReveal: false, qset, updatedAt: serverTimestamp(),
+    active: null, tutorial: null, tutorialReveal: false, qset, justiceTotal: 0, villages: 0, updatedAt: serverTimestamp(),
   });
   for (const c of CLASSES) {
     b.set(doc(r.classes, c.id), {
       grade: c.grade, no: c.no, name: c.name, order: c.order,
-      fruit: START_FRUIT, shared: 0, correct: 0, received: 0, fromOthers: 0,
+      fruit: START_FRUIT, shared: 0, justice: 0, correct: 0, received: 0, fromOthers: 0,
     });
   }
   if (!key) b.set(r.joinKey, { token: randomToken(12) });
@@ -164,24 +164,48 @@ export async function advance(g, rng = Math.random) {
     return h;
   };
 
-  if (next.phase === 'quiz_open') {
-    update.deadlineAt = now + QUIZ_SECONDS * 1000;
+  if (next.phase === 'justice_open') {
+    update.deadlineAt = now + JUSTICE_SECONDS * 1000;
     update.last = null;
   }
 
+  // 정의 창고 마감: 낸 열매는 사라지고 누적만큼 이웃 마을이 생긴다
+  if (next.phase === 'quiz_open') {
+    const gifts = collectSubs(subs, game.round, 'justice', active);
+    const fruits = Object.fromEntries(active.map((id) => [id, classes[id].fruit]));
+    const res = applyJustice(fruits, gifts, game.justiceTotal || 0, active);
+    for (const id of active) {
+      const p = res.perClass[id];
+      if (!p.g) continue;
+      b.update(doc(r.classes, id), { fruit: p.after, justice: (classes[id].justice || 0) + p.g });
+    }
+    Object.assign(entry(game.round), {
+      justice: Object.fromEntries(active.map((id) => [id, res.perClass[id].g])),
+      eligible: active.filter((id) => res.perClass[id].eligible),
+      villages: res.villages,
+    });
+    update.history = history;
+    update.justiceTotal = res.total;
+    update.villages = res.villages;
+    update.deadlineAt = now + QUIZ_SECONDS * 1000;
+    update.last = { justice: res };
+  }
+
+  // 정답 공개: 열매는 아직 그대로. 맞힌 반은 이번 추수에 남긴 열매가 감사 농사 배율만큼 불어난다
   if (next.phase === 'quiz_reveal') {
     const q = questionOf(game.round, game.qset);
     const answers = collectSubs(subs, game.round, 'quiz', active);
-    const delta = scoreQuiz(answers, q.answer, active);
+    const ok = scoreQuiz(answers, q.answer, active);
+    const h = entry(game.round);
+    const elig = new Set(h.eligible || []);
+    const mult = Object.fromEntries(active.map((id) => [id, farmMult(ok[id], elig.has(id), h.villages || 0)]));
     for (const id of active) {
-      if (!delta[id]) continue;
-      b.update(doc(r.classes, id), {
-        fruit: classes[id].fruit + delta[id], correct: (classes[id].correct || 0) + 1,
-      });
+      if (ok[id]) b.update(doc(r.classes, id), { correct: (classes[id].correct || 0) + 1 });
     }
-    entry(game.round).quiz = delta;
+    h.quiz = ok;
+    h.farm = mult;
     update.history = history;
-    update.last = { quiz: { answers, correct: q.answer, delta } };
+    update.last = { ...(game.last || {}), quiz: { answers, correct: q.answer, ok, mult } };
   }
 
   if (next.phase === 'store_open') {
@@ -196,8 +220,8 @@ export async function advance(g, rng = Math.random) {
   if (next.phase === 'encounter_reveal') {
     const contributions = collectSubs(subs, game.round, 'store', active);
     const fruits = Object.fromEntries(active.map((id) => [id, classes[id].fruit]));
-    const enc = drawEncounter(game.round, history, rng);
-    const res = applyStore(fruits, contributions, enc.key, active);
+    const enc = drawEncounter(rng);
+    const res = applyStore(fruits, contributions, enc.key, active, entry(game.round).farm || {});
     for (const id of active) {
       const p = res.perClass[id];
       b.update(doc(r.classes, id), {
@@ -209,7 +233,7 @@ export async function advance(g, rng = Math.random) {
     }
     Object.assign(entry(game.round), { enc: enc.key, X: res.X, share: res.share });
     update.history = history;
-    update.last = { store: res };
+    update.last = { ...(game.last || {}), store: res };
   }
 
   b.update(r.game, update);

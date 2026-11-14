@@ -1,9 +1,9 @@
 import { ready, params, doc, setDoc, onSnapshot, serverTimestamp } from './fb.js';
 import {
-  CLASSES, GRADES, ENCOUNTER_BY_KEY, QUIZ_REWARD, JOINT_GOAL,
+  CLASSES, GRADES, ENCOUNTER_BY_KEY, JOINT_GOAL, FARM_MULT, VILLAGE_BONUS, JUSTICE_PER_VILLAGE,
 } from './data.js';
 import {
-  questionOf, rank, clampContribution, activeOf, jointWin,
+  questionOf, rank, clampContribution, activeOf, jointWin, averageFloor, farmMult,
 } from './logic.js';
 import {
   refs, subId, watch, watchClaims, claimClass,
@@ -23,7 +23,8 @@ let mine = null; // 내 반 문서
 let mySub = null; // 이번 단계 내 제출
 let subKey = '';
 let offSub = null;
-let draft = null; // 창고 숫자 입력 중인 값
+let draft = null; // 지금 친구가 누르고 있는 숫자
+let entries = []; // 이번 단계에 친구들이 입력한 숫자들 (화면에는 개수만 보인다)
 let sending = false;
 let errMsg = '';
 
@@ -100,7 +101,24 @@ watch(g, {
   onError: (e) => { errMsg = `연결 오류: ${e.message}`; if (started) render(); },
 });
 
-const kindOf = (phase) => (phase.startsWith('quiz') ? 'quiz' : ['store_open', 'store_locked', 'encounter_reveal'].includes(phase) ? 'store' : null);
+const kindOf = (phase) => (phase === 'justice_open' ? 'justice'
+  : phase.startsWith('quiz') ? 'quiz'
+  : ['store_open', 'store_locked', 'encounter_reveal'].includes(phase) ? 'store' : null);
+
+// 친구들 입력은 새로고침해도 남도록 이 기기에만 잠깐 저장한다
+const entryKey = () => `farm:entries:${g}:${subKey}`;
+function loadEntries() {
+  try { entries = JSON.parse(sessionStorage.getItem(entryKey()) || '[]'); } catch (e) { entries = []; }
+  if (!Array.isArray(entries)) entries = [];
+}
+function saveEntries() {
+  try { sessionStorage.setItem(entryKey(), JSON.stringify(entries)); } catch (e) { /* 저장 불가 */ }
+}
+
+// 이번 라운드 기록 (정의 창고 자격, 이웃 마을 수)
+const roundEntry = () => (game?.history || []).find((h) => h.round === game.round) || {};
+const myEligible = () => (roundEntry().eligible || []).includes(classId);
+const myMult = () => farmMult(true, myEligible(), roundEntry().villages ?? game?.villages ?? 0);
 
 // 이번 라운드·종류의 내 제출 문서를 구독 (새로고침해도 제출 상태가 보인다)
 function resubscribe() {
@@ -113,6 +131,7 @@ function resubscribe() {
   offSub = null;
   mySub = null;
   draft = null;
+  loadEntries();
   if (!sk) return;
   const listen = () => onSnapshot(doc(refs(g).subs, sk), (s) => {
     mySub = s.exists() ? s.data() : null;
@@ -159,37 +178,60 @@ function quizView(open) {
     const ok = ans === q.answer;
     const correctText = q.type === 'ox' ? q.answer : `${q.answer}. ${q.options[Number(q.answer) - 1]}`;
     return `<div class="t-q">${esc(q.q)}</div>
-      <div class="notice ${ok ? 'ok' : ''}">${ok ? `정답이에요! 열매 +${QUIZ_REWARD}` : `아쉬워요. 정답은 <b>${esc(correctText)}</b>`}${ans ? ` (우리 반 답: ${esc(ans)})` : ' (미제출)'}</div>
+      <div class="notice ${ok ? 'ok' : ''}">${ok ? `정답이에요! 이번 추수에 남긴 열매가 <b>×${myMult()}</b>로 불어나요.` : `아쉬워요. 정답은 <b>${esc(correctText)}</b> · 이번 추수에 남긴 열매는 그대로예요.`}${ans ? ` (우리 반 답: ${esc(ans)})` : ' (미제출)'}</div>
       <div class="big-msg">곧 창고 회의가 시작돼요.</div>`;
   }
-  return `<div class="row" style="justify-content:space-between"><span class="pill">감사 농사 · 맞히면 +${QUIZ_REWARD}</span><span class="timer" id="ttimer" style="font-size:28px"></span></div>
+  return `<div class="row" style="justify-content:space-between"><span class="pill">감사 농사 · 맞히면 남긴 열매 ×${myMult()}</span><span class="timer" id="ttimer" style="font-size:28px"></span></div>
     <div class="t-q">${esc(q.q)}</div>
     <div class="ans-grid">${opts.map(([k, label]) => `<button type="button" class="ans${q.type === 'ox' ? ' ox' : ''}${chosen === k ? ' sel' : ''}" data-ans="${k}" ${sending ? 'disabled' : ''}>${esc(label)}</button>`).join('')}</div>
     <div class="notice ${chosen ? 'ok' : ''}">${chosen ? `제출됨: <b>${esc(chosen)}</b> · 마감 전까지 바꿀 수 있어요.` : '반 친구들과 의논해서 답을 눌러 주세요. 누르면 바로 제출돼요.'}</div>`;
 }
 
-function storeView(open) {
+// 친구들이 한 명씩 숫자를 누르고, 다 누르면 평균(버림)을 제출한다
+function inputBox(kind, title, hint) {
   const fruit = mine?.fruit ?? 0;
   const sent = mySub?.value;
-  if (!open) {
-    return `<div class="big-msg">${sent === undefined ? '이번 라운드는 창고에 내지 않았어요 (0개).' : `창고에 <b>${sent}개</b>를 냈어요.`}<br>날씨 발표를 기다려요!</div>`;
-  }
-  const value = clampContribution(draft ?? sent ?? 0, fruit);
-  return `<div class="row" style="justify-content:space-between"><span class="pill">창고 회의</span><span class="timer" id="ttimer" style="font-size:28px"></span></div>
-    <div class="t-q">감사 창고에 몇 개를 넣을까요? <span class="muted" style="font-size:16px">(0~${fruit}개)</span></div>
+  const value = clampContribution(draft ?? 0, fruit);
+  const avg = averageFloor(entries, fruit);
+  return `<div class="row" style="justify-content:space-between"><span class="pill">${kind === 'justice' ? '정의 창고' : '감사 창고'}</span><span class="timer" id="ttimer" style="font-size:28px"></span></div>
+    <div class="t-q">${title} <span class="muted" style="font-size:16px">(0~${fruit}개)</span></div>
+    ${hint ? `<div class="notice">${hint}</div>` : ''}
+    <p class="muted" style="margin:0">친구 한 명씩 숫자를 누르고 <b>입력</b>을 누른 뒤 다음 친구에게 넘겨 주세요. 앞 친구의 숫자는 보이지 않아요.</p>
     <div class="stepper">
       <button type="button" data-step="-1" aria-label="1개 빼기">−</button>
-      <input id="num" type="number" inputmode="numeric" min="0" max="${fruit}" value="${value}" aria-label="창고에 넣을 열매 수">
+      <input id="num" type="number" inputmode="numeric" min="0" max="${fruit}" value="${value}" aria-label="내가 넣고 싶은 열매 수">
       <button type="button" data-step="1" aria-label="1개 더하기">+</button>
     </div>
     <div class="quick">
       <button type="button" data-set="0">0개</button>
+      <button type="button" data-set="1">1개</button>
       <button type="button" data-set="${Math.floor(fruit / 2)}">절반</button>
       <button type="button" data-set="${fruit}">전부</button>
-      <button type="button" data-set="${sent ?? 0}">되돌리기</button>
     </div>
-    <button type="button" class="btn big" id="sendStore" ${sending ? 'disabled' : ''}>${sent === undefined ? `${value}개 제출` : `${value}개로 다시 제출`}</button>
-    <div class="notice ${sent !== undefined ? 'ok' : ''}">${sent !== undefined ? `제출됨: <b>${sent}개</b> · 마감 전까지 바꿀 수 있어요. 다른 반에는 숫자가 보이지 않아요.` : '아직 제출하지 않았어요. 마감까지 내지 않으면 0개로 처리돼요.'}</div>`;
+    <button type="button" class="btn big" id="addEntry" ${sending ? 'disabled' : ''}>입력 (${entries.length + 1}번째 친구)</button>
+    <div class="row" style="gap:8px">
+      <button type="button" class="btn" id="sendAvg" data-kind="${kind}" ${sending || !entries.length ? 'disabled' : ''} style="flex:2">${entries.length ? `${entries.length}명 입력 끝 → 평균 ${avg}개 제출` : '친구들이 입력하면 제출할 수 있어요'}</button>
+      <button type="button" class="btn ghost" id="clearEntries" ${entries.length ? '' : 'disabled'} style="flex:1">처음부터</button>
+    </div>
+    <div class="notice ${sent !== undefined ? 'ok' : ''}">${sent !== undefined ? `제출됨: <b>${sent}개</b> · 마감 전까지 친구를 더 입력하거나 처음부터 다시 낼 수 있어요. 다른 반에는 숫자가 보이지 않아요.` : '아직 제출하지 않았어요. 마감까지 내지 않으면 0개로 처리돼요.'}</div>`;
+}
+
+function justiceView() {
+  const v = game.villages || 0;
+  const total = game.justiceTotal || 0;
+  const toNext = JUSTICE_PER_VILLAGE - (total % JUSTICE_PER_VILLAGE);
+  const hint = `지금 이웃 마을 <b>${v}개</b> · 다음 마을까지 ${toNext}개<br>이번 라운드에 <b>1개 이상</b> 내면, 감사 농사를 맞혔을 때 배율이 ×${FARM_MULT} + 이웃 마을 1개당 ${VILLAGE_BONUS}만큼 올라가요. 0개면 이웃의 도움을 받지 못해요. 낸 열매는 돌아오지 않아요.`;
+  return inputBox('justice', '정의 창고에 몇 개를 낼까요?', hint);
+}
+
+function storeView(open) {
+  const sent = mySub?.value;
+  if (!open) {
+    return `<div class="big-msg">${sent === undefined ? '이번 라운드는 창고에 내지 않았어요 (0개).' : `창고에 <b>${sent}개</b>를 냈어요.`}<br>날씨 발표를 기다려요!</div>`;
+  }
+  const ok = game.last?.quiz?.ok?.[classId];
+  const hint = ok ? `감사 농사 정답! 창고에 넣지 않고 남긴 열매는 <b>×${myMult()}</b>로 불어나요. (나쁨 날씨면 그다음 절반)` : '이번 라운드는 감사 농사를 맞히지 못해서 남긴 열매가 불어나지 않아요.';
+  return inputBox('store', '감사 창고에 몇 개를 넣을까요?', hint);
 }
 
 function encounterView() {
@@ -197,12 +239,14 @@ function encounterView() {
   const p = r?.perClass?.[classId];
   const e = r ? ENCOUNTER_BY_KEY[r.enc] : null;
   if (!p || !e) return '<div class="big-msg">결과를 불러오는 중…</div>';
-  return `<div class="t-q">이번 날씨: ${esc(e.name)}</div>
+  return `<div class="t-q">이번 날씨: ${esc(e.tierName)} · ${esc(e.name)}</div>
     <div class="notice">${esc(e.desc)}</div>
     <div class="t-result card">
       <span>원래 열매</span><b>${p.before}개</b>
       <span>창고에 낸 열매</span><b>${p.c}개</b>
-      <span>남긴 열매${r.keep !== 1 ? ` (${keepLabel(r.keep)})` : ''}</span><b>${p.leftover} → ${p.kept}개</b>
+      <span>남긴 열매</span><b>${p.leftover}개</b>
+      ${p.farm && p.farm !== 1 ? `<span>감사 농사 ×${p.farm}</span><b>→ ${p.farmed}개</b>` : ''}
+      ${r.keep !== 1 ? `<span>${keepLabel(r.keep)}</span><b>→ ${p.kept}개</b>` : ''}
       <span>창고에서 받은 열매</span><b>+${p.share}개</b>
       <span>지금 열매</span><b>${p.after}개</b>
     </div>`;
@@ -216,7 +260,7 @@ function resultView() {
   const joint = jointWin(list);
   return `<div class="big-msg">수고했어요!<br>${esc(meta.name)}은 열매 <b>${mine?.fruit ?? 0}개</b>로<br>${list.length}개 반 중 ${pos}등이에요.</div>
     ${joint ? `<div class="notice ok">모든 반이 ${JOINT_GOAL}개를 넘었어요. 모두 공동우승!</div>` : ''}
-    <div class="notice">창고에 나눈 열매: ${mine?.shared ?? 0}개<br>다른 반이 나눠 준 열매에서 받은 몫: ${mine?.fromOthers ?? 0}개<br>범사에 감사하라 · 데살로니가전서 5:18</div>`;
+    <div class="notice">감사 창고에 나눈 열매: ${mine?.shared ?? 0}개<br>정의 창고에 낸 열매: ${mine?.justice ?? 0}개 (이웃 마을 ${game.villages || 0}개)<br>다른 반이 나눠 준 열매에서 받은 몫: ${mine?.fromOthers ?? 0}개<br>범사에 감사하라 · 데살로니가전서 5:18</div>`;
 }
 
 function render() {
@@ -234,6 +278,7 @@ function render() {
   }
   switch (game.phase) {
     case 'lobby': html = `<div class="big-msg">게임 시작을 기다리고 있어요.<br>이 화면을 켜 둔 채로 기다려 주세요.</div><div class="notice">모든 반이 열매 ${JOINT_GOAL}개 이상이면 모두 공동우승이에요.</div>`; break;
+    case 'justice_open': html = justiceView(); break;
     case 'quiz_open': html = quizView(true); break;
     case 'quiz_reveal': html = quizView(false); break;
     case 'store_open': html = storeView(true); break;
@@ -245,11 +290,7 @@ function render() {
   if (errMsg) html += `<div class="notice" style="background:#FEE2E2;color:#B91C1C">${esc(errMsg)}</div>`;
   // 입력 중인 숫자 칸은 포커스를 유지하기 위해 같은 값이면 다시 그리지 않는다
   const active = document.activeElement?.id === 'num';
-  if (active && game.phase === 'store_open') {
-    const btn = $('#sendStore');
-    if (btn) btn.disabled = sending;
-    return;
-  }
+  if (active && ['store_open', 'justice_open'].includes(game.phase)) return;
   body.innerHTML = html;
   const t = $('#ttimer');
   clearInterval(window.__tick);
@@ -281,15 +322,30 @@ $('#body').addEventListener('click', async (e) => {
   if (st) { draft = clampContribution(Number($('#num').value) + Number(st.dataset.step), fruit); render(); return; }
   const set = e.target.closest('[data-set]');
   if (set) { draft = clampContribution(set.dataset.set, fruit); render(); return; }
-  if (e.target.closest('#sendStore')) {
-    const v = clampContribution($('#num').value, fruit);
-    draft = v;
-    if (confirm(`감사 창고에 ${v}개를 낼까요?`)) submit('store', v);
+  if (e.target.closest('#addEntry')) {
+    entries.push(clampContribution($('#num').value, fruit));
+    saveEntries();
+    draft = 0; // 다음 친구는 0에서 시작 (앞 친구 숫자가 보이지 않게)
+    render();
+    return;
+  }
+  if (e.target.closest('#clearEntries')) {
+    if (!confirm('입력한 친구들 숫자를 모두 지우고 처음부터 할까요?')) return;
+    entries = [];
+    saveEntries();
+    draft = 0;
+    render();
+    return;
+  }
+  const sendBtn = e.target.closest('#sendAvg');
+  if (sendBtn && entries.length) {
+    const kind = sendBtn.dataset.kind;
+    const v = averageFloor(entries, fruit);
+    const where = kind === 'justice' ? '정의 창고' : '감사 창고';
+    if (confirm(`${entries.length}명이 입력했어요. 평균(소수점 버림) ${v}개를 ${where}에 낼까요?`)) submit(kind, v);
   }
 });
 $('#body').addEventListener('input', (e) => {
   if (e.target.id !== 'num') return;
   draft = clampContribution(e.target.value, mine?.fruit ?? 0);
-  const btn = $('#sendStore');
-  if (btn) btn.textContent = mySub?.value === undefined ? `${draft}개 제출` : `${draft}개로 다시 제출`;
 });

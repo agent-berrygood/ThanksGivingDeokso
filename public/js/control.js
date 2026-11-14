@@ -1,8 +1,9 @@
 import { ready, params } from './fb.js';
 import {
   QUESTION_SETS, QSET_BY_KEY, DEFAULT_QSET, questionsOf, ENCOUNTERS, SEASONS, CLASSES, TUTORIAL, JOINT_GOAL,
+  FARM_MULT, VILLAGE_BONUS, JUSTICE_PER_VILLAGE,
 } from './data.js';
-import { NEXT_LABEL, questionOf, seasonOf, activeOf } from './logic.js';
+import { NEXT_LABEL, questionOf, activeOf } from './logic.js';
 import {
   watch, watchClaims, advance, undo, resetGame, adjustFruit, extendDeadline, setShowQr, isAdmin,
   loadJoinKey, collectSubs, releaseClass, joinUrl, qrSvg, rememberSession, setTutorial, setQset,
@@ -44,6 +45,7 @@ function activeIds() {
 
 function currentKind() {
   if (!game) return null;
+  if (game.phase === 'justice_open') return 'justice';
   if (game.phase === 'quiz_open' || game.phase === 'quiz_reveal') return 'quiz';
   if (['store_open', 'store_locked', 'encounter_reveal'].includes(game.phase)) return 'store';
   return null;
@@ -61,12 +63,14 @@ function previewText() {
         return '설명·연습 화면을 보여 주는 중이에요. 아래 버튼으로 넘기세요. 실제 열매에는 영향이 없어요.';
       }
       return `출력 창을 프로젝터에 띄우면 참여 QR이 보여요. 지금 ${joined}개 반이 반을 골랐어요. 게임은 <b>시작할 때 반을 고른 반만</b> 참여해요. 공동우승 목표는 모든 반 ${JOINT_GOAL}개 이상이에요.`;
+    case 'justice_open':
+      return `정의 창고 시간이에요. 반마다 친구들이 한 명씩 숫자를 누르면 평균(버림)이 제출돼요. 지금 이웃 마을 <b>${game.villages || 0}개</b>(누적 ${game.justiceTotal || 0}개, ${JUSTICE_PER_VILLAGE}개마다 1마을). 1개 이상 낸 반만 이번 라운드 감사 농사 배율이 마을당 +${VILLAGE_BONUS} 올라가요. 마감하면 바로 감사 농사 문제가 나와요.`;
     case 'quiz_open':
       return `<b>문제</b> ${esc(q.q)}<br>${esc(optText(q))}<br><b>정답</b> ${esc(answerText(q))}<br>반이 의논해서 선생님 휴대폰으로 답을 내요. 다 내면 정답을 공개하세요.`;
     case 'quiz_reveal':
-      return '맞힌 반에 열매 +2가 들어갔어요. 이제 창고 회의를 시작하세요.';
+      return `맞힌 반은 이번 추수에 남긴 열매가 ×${FARM_MULT}(정의 창고에 낸 반은 이웃 마을 ${game.villages || 0}개만큼 더)로 불어나요. 열매는 날씨를 공개할 때 바뀌어요. 이제 창고 회의를 시작하세요.`;
     case 'store_open':
-      return `이번 계절(${SEASONS[seasonOf(game.round)]}) 인카운터 후보를 보여 주며 회의 시간을 주세요. 숫자는 출력 화면에 보이지 않아요.`;
+      return '좋음·보통·나쁨 날씨를 보여 주며 회의 시간을 주세요. 반마다 친구들이 한 명씩 숫자를 누르고 평균(버림)을 제출해요. 숫자는 출력 화면에 보이지 않아요.';
     case 'store_locked':
       return '제출이 마감됐어요. 인카운터를 뽑으면 열매가 나눠져요. 안 낸 반은 0개로 처리돼요.';
     case 'encounter_reveal':
@@ -143,6 +147,8 @@ function render() {
       cell = `<span class="pill${ok}">답 ${esc(now[c.id])}</span>`;
     } else if (kind === 'store' && c.id in now) {
       cell = `<span class="pill">창고 ${esc(now[c.id])}개</span>`;
+    } else if (kind === 'justice' && c.id in now) {
+      cell = `<span class="pill${now[c.id] >= 1 ? ' ok' : ' no'}">정의 ${esc(now[c.id])}개</span>`;
     } else if (kind) {
       cell = '<span class="muted">미제출</span>';
     }
@@ -184,8 +190,8 @@ $('#nextBtn').addEventListener('click', () => {
     const names = CLASSES.filter((c) => ids.includes(c.id)).map((c) => c.name).join(', ');
     if (!confirm(`${ids.length}개 반으로 시작할까요?\n${names}\n시작한 뒤에 들어온 반은 이번 게임에 참여하지 못해요.`)) return;
   }
-  if (game?.phase === 'quiz_open' || game?.phase === 'store_open') {
-    const kind = game.phase === 'quiz_open' ? 'quiz' : 'store';
+  if (['quiz_open', 'store_open', 'justice_open'].includes(game?.phase)) {
+    const kind = currentKind();
     const total = activeIds().length;
     const n = Object.keys(collectSubs(subs, game.round, kind, activeIds())).length;
     if (n < total && !confirm(`아직 ${total - n}개 반이 내지 않았어요. 마감할까요?`)) return;
@@ -244,6 +250,6 @@ $('#qsetSel').addEventListener('change', (e) => {
   const v = e.target.value; // render()가 값을 되돌리기 전에 읽어 둔다
   run(() => setQset(g, v));
 });
-$('#encList').innerHTML = `<h3 style="font-size:20px;margin-bottom:8px">계절별 인카운터</h3>${
-  ENCOUNTERS.map((list, s) => `<p style="margin:0 0 6px"><b>${SEASONS[s]}</b> ${
-    list.map((e) => `${esc(e.name)}(×${e.mult}${e.keep !== 1 ? `, ${keepLabel(e.keep)}` : ''})`).join(' · ')}</p>`).join('')}`;
+$('#encList').innerHTML = `<h3 style="font-size:20px;margin-bottom:8px">인카운터 (셋 중 하나, 무작위)</h3>${
+  ENCOUNTERS.map((t) => `<p style="margin:0 0 6px"><b>${esc(t.name)}</b> 창고 ×${t.mult}${t.keep !== 1 ? `, ${keepLabel(t.keep)}` : ''} · ${
+    t.cards.map((c) => esc(c.name)).join(', ')}</p>`).join('')}`;

@@ -1,13 +1,21 @@
 // 감사 열매 농장 — 고정 데이터 (반, 인카운터, 문제)
 
 export const START_FRUIT = 10;
-export const QUIZ_REWARD = 2;
-export const ROUNDS = 8; // 계절 4 × 라운드 2
+export const ROUNDS = 8; // 계절 4 × 라운드 2 (계절은 라운드 이름으로만 쓴다)
+export const JUSTICE_SECONDS = 30; // 라운드 처음: 정의 창고
 export const QUIZ_SECONDS = 30;
-export const STORE_SECONDS = 55; // 회의 40초 + 제출 15초
+export const STORE_SECONDS = 55; // 반 친구들이 한 명씩 숫자 입력 + 제출
+
+// 감사 농사: 맞힌 반은 이번 추수에 창고에 넣지 않고 남긴 열매가 이 배율로 불어난다
+export const FARM_MULT = 2.0;
+// 정의 창고: 모든 반이 넣은 열매가 누적 이만큼 모일 때마다 이웃 마을 1개
+export const JUSTICE_PER_VILLAGE = 12;
+// 이번 라운드 정의 창고에 1개 이상 낸 반은 이웃 마을 1개당 감사 농사 배율 +0.1
+export const VILLAGE_BONUS = 0.1;
+
 // 모든 참여 반이 각각 이만큼 이상 모으면 공동우승
-// (시뮬레이션: 모든 반이 매번 절반씩 나누면 거의 항상 넘고, 25%만 나누거나 절반의 반이 안 나누면 못 넘음)
-export const JOINT_GOAL = 100;
+// (시뮬레이션: 모두 매번 절반을 나누고 정의 창고에 1개씩 내면 대부분 넘고, 25%만 나누면 대부분 못 넘음)
+export const JOINT_GOAL = 200;
 
 export const GRADES = [
   { key: 'faith', name: '믿음', school: '4학년', color: '#C2410C' },
@@ -29,31 +37,39 @@ export const CLASSES = GRADES.flatMap((g, gi) =>
 
 export const SEASONS = ['봄', '여름', '가을', '추수'];
 
-// keep: 창고에 넣지 않고 남긴 열매가 남는 비율 (1 = 그대로, 0.5 = 절반, 0.25 = 1/4)
+// 인카운터: 좋음·보통·나쁨 3단계 중 하나를 같은 확률로 뽑고(계절과 무관, 반복 가능), 그 단계 안에서 카드 하나를 뽑는다.
+// mult: 감사 창고 배수, keep: 창고에 넣지 않고 남긴 열매가 남는 비율 (1 = 그대로, 0.5 = 절반)
 export const ENCOUNTERS = [
-  [
-    { key: 'spring-rain', name: '단비', mult: 3, keep: 1, desc: '촉촉한 단비! 창고 열매가 3배로 불어나요.' },
-    { key: 'spring-normal', name: '보통 날씨', mult: 2, keep: 1, desc: '평온한 봄날. 창고 열매가 2배가 돼요.' },
-    { key: 'spring-frost', name: '꽃샘추위', mult: 1.5, keep: 0.5, desc: '갑자기 추워졌어요! 창고는 1.5배, 남긴 열매는 절반이 얼어 버려요.' },
-  ],
-  [
-    { key: 'summer-heat', name: '폭염', mult: 3, keep: 0.25, desc: '뜨거운 폭염! 창고는 3배, 남긴 열매는 1/4만 남아요.' },
-    { key: 'summer-monsoon', name: '장마', mult: 1.5, keep: 1, desc: '긴 장마. 창고 열매가 1.5배가 돼요.' },
-    { key: 'summer-typhoon', name: '태풍', mult: 2, keep: 0.5, desc: '태풍이 지나갔어요! 창고는 2배, 남긴 열매는 절반이 날아가요.' },
-  ],
-  [
-    { key: 'autumn-harvest', name: '풍년', mult: 3, keep: 1, desc: '풍년이에요! 창고 열매가 3배로 불어나요.' },
-    { key: 'autumn-normal', name: '보통 날씨', mult: 2, keep: 1, desc: '맑은 가을 하늘. 창고 열매가 2배가 돼요.' },
-    { key: 'autumn-locust', name: '메뚜기 떼', mult: 2, keep: 0.5, desc: '메뚜기 떼 습격! 창고는 2배, 남긴 열매는 절반을 먹혀요.' },
-  ],
-  [
-    { key: 'harvest-feast', name: '추수 잔치', mult: 3, keep: 1, desc: '추수 잔치! 창고 열매가 3배로 불어나요.' },
-    { key: 'harvest-normal', name: '보통 날씨', mult: 2, keep: 1, desc: '무사히 거둬들였어요. 창고 열매가 2배가 돼요.' },
-    { key: 'harvest-crow', name: '까마귀 떼', mult: 2, keep: 0.5, desc: '까마귀 떼가 왔어요! 창고는 2배, 남긴 열매는 절반을 빼앗겨요.' },
-  ],
+  {
+    tier: 'good', name: '좋음', mult: 2, keep: 1,
+    cards: [
+      { key: 'good-rain', name: '단비', desc: '촉촉한 단비! 창고 열매가 2배로 불어나요.' },
+      { key: 'good-harvest', name: '풍년', desc: '풍년이에요! 창고 열매가 2배로 불어나요.' },
+      { key: 'good-feast', name: '추수 잔치', desc: '추수 잔치! 창고 열매가 2배로 불어나요.' },
+    ],
+  },
+  {
+    tier: 'normal', name: '보통', mult: 1.5, keep: 1,
+    cards: [
+      { key: 'normal-clear', name: '맑은 날', desc: '맑은 하늘. 창고 열매가 1.5배가 돼요.' },
+      { key: 'normal-calm', name: '평온한 날', desc: '평온한 하루. 창고 열매가 1.5배가 돼요.' },
+      { key: 'normal-breeze', name: '선선한 바람', desc: '선선한 바람이 불어요. 창고 열매가 1.5배가 돼요.' },
+    ],
+  },
+  {
+    tier: 'bad', name: '나쁨', mult: 1.5, keep: 0.5,
+    cards: [
+      { key: 'bad-typhoon', name: '태풍', desc: '태풍이 지나갔어요! 창고는 1.5배, 남긴 열매는 절반이 날아가요.' },
+      { key: 'bad-locust', name: '메뚜기 떼', desc: '메뚜기 떼 습격! 창고는 1.5배, 남긴 열매는 절반을 먹혀요.' },
+      { key: 'bad-crow', name: '까마귀 떼', desc: '까마귀 떼가 왔어요! 창고는 1.5배, 남긴 열매는 절반을 빼앗겨요.' },
+    ],
+  },
 ];
 
-export const ENCOUNTER_BY_KEY = Object.fromEntries(ENCOUNTERS.flat().map((e) => [e.key, e]));
+export const TIER_BY_KEY = Object.fromEntries(ENCOUNTERS.map((t) => [t.tier, t]));
+export const ENCOUNTER_BY_KEY = Object.fromEntries(
+  ENCOUNTERS.flatMap((t) => t.cards.map((c) => [c.key, { ...c, tier: t.tier, tierName: t.name, mult: t.mult, keep: t.keep }]))
+);
 
 // 문제 세트: 라운드 순서대로 8문제, 계절마다 O/X 1개(라운드 1) + 4지선다 1개(라운드 2)
 // 진행자 컨트롤의 시작 전 화면에서 세트를 고른다. 첫 번째 세트가 기본값.
@@ -98,7 +114,9 @@ export const TUTORIAL = [
   { key: 'welcome', title: '감사 열매 농장' },
   { key: 'round', title: '한 라운드는 이렇게' },
   { key: 'store', title: '감사 창고 계산' },
-  { key: 'weather', title: '계절마다 날씨가 바뀌어요' },
+  { key: 'farm', title: '감사 농사와 남긴 열매' },
+  { key: 'justice', title: '정의 창고와 이웃 마을' },
+  { key: 'weather', title: '날씨는 좋음·보통·나쁨' },
   { key: 'practiceQ', title: '연습 문제', reveal: true },
   { key: 'practiceRound', title: '연습 라운드', reveal: true },
   { key: 'joint', title: '이기는 방법은 두 가지' },
@@ -112,11 +130,12 @@ export const PRACTICE_ROUND = {
   names: ['가 반', '나 반', '다 반', '라 반'],
   start: 10,
   contrib: [10, 5, 0, 10],
-  encounter: 'spring-rain',
+  encounter: 'good-rain',
 };
 
 export const PHASE_LABEL = {
   lobby: '시작 전',
+  justice_open: '정의 창고 — 이웃 마을에 나누기',
   quiz_open: '감사 농사 — 의논하고 답 내기',
   quiz_reveal: '감사 농사 — 정답 공개',
   store_open: '창고 회의 — 열매 나누기',

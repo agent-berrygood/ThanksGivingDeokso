@@ -94,6 +94,9 @@ service cloud.firestore {
             ||
             (d.kind == 'store' && game.phase == 'store_open'
               && d.value is int && d.value >= 0 && d.value <= cls.fruit)
+            ||
+            (d.kind == 'justice' && game.phase == 'justice_open'
+              && d.value is int && d.value >= 0 && d.value <= cls.fruit)
           );
       }
     }
