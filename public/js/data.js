@@ -14,8 +14,8 @@ export const JUSTICE_PER_VILLAGE = 24;
 export const VILLAGE_BONUS = 0.3;
 
 // 모든 참여 반이 각각 이만큼 이상 모으면 공동우승
-// (시뮬레이션: 25%만 나누고 정의 창고에 안 내면 약 19%, 절반을 나누고 정의 창고에 2개씩 내면 약 76% 확률로 넘음)
-export const JOINT_GOAL = 300;
+// (시뮬레이션, 학년별 정답률 60/75/85%: 거의 안 나누면 약 4%, 감사 창고 10~25%·정의 1개면 약 47%, 30~50%·정의 1~2개면 약 70%)
+export const JOINT_GOAL = 150;
 
 export const GRADES = [
   { key: 'faith', name: '믿음', school: '4학년', color: '#C2410C' },

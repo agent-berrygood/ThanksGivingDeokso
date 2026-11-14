@@ -171,9 +171,9 @@ test('참여 반: 시작 전에는 전체, 시작 후에는 확정 목록', () =
 });
 
 test('공동우승: 모든 반이 목표 이상일 때만', () => {
-  assert.equal(JOINT_GOAL, 300);
-  assert.equal(jointWin([{ fruit: 300 }, { fruit: 350 }]), true);
-  assert.equal(jointWin([{ fruit: 299 }, { fruit: 999 }]), false);
+  assert.equal(JOINT_GOAL, 150);
+  assert.equal(jointWin([{ fruit: 150 }, { fruit: 350 }]), true);
+  assert.equal(jointWin([{ fruit: 149 }, { fruit: 999 }]), false);
   assert.equal(jointWin([]), false);
 });
 
