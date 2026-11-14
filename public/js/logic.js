@@ -66,7 +66,7 @@ export function applyJustice(fruits, gifts, prevTotal = 0, classIds = CLASSES.ma
   return { added, total, villages, built, perClass };
 }
 
-// 감사 농사 배율: 맞힌 반만. 이번 라운드 정의 창고에 낸 반은 우리 반 마을 1개당 +0.1
+// 감사 농사 배율: 맞힌 반만. 이번 라운드 정의 창고에 낸 반은 우리 반 마을 1개당 +0.3
 export function farmMult(correct, eligible, villages) {
   if (!correct) return 1;
   return Math.round((FARM_MULT + (eligible ? VILLAGE_BONUS * villages : 0)) * 100) / 100;

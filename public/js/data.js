@@ -9,13 +9,13 @@ export const STORE_SECONDS = 55; // 반 친구들이 한 명씩 숫자 입력 + 
 // 감사 농사: 맞힌 반은 이번 추수에 창고에 넣지 않고 남긴 열매가 이 배율로 불어난다
 export const FARM_MULT = 2.0;
 // 정의 창고: 모든 반이 넣은 열매가 누적 이만큼 모일 때마다 이웃 마을 1개
-export const JUSTICE_PER_VILLAGE = 12;
-// 이번 라운드 정의 창고에 1개 이상 낸 반은 이웃 마을 1개당 감사 농사 배율 +0.1
-export const VILLAGE_BONUS = 0.1;
+export const JUSTICE_PER_VILLAGE = 24;
+// 이번 라운드 정의 창고에 1개 이상 낸 반은 우리 반 마을 1개당 감사 농사 배율 +0.3
+export const VILLAGE_BONUS = 0.3;
 
 // 모든 참여 반이 각각 이만큼 이상 모으면 공동우승
-// (시뮬레이션: 모두 매번 절반을 나누고 정의 창고에 1개씩 내면 대부분 넘고, 25%만 나누면 대부분 못 넘음)
-export const JOINT_GOAL = 200;
+// (시뮬레이션: 25%만 나누고 정의 창고에 안 내면 약 19%, 절반을 나누고 정의 창고에 2개씩 내면 약 76% 확률로 넘음)
+export const JOINT_GOAL = 300;
 
 export const GRADES = [
   { key: 'faith', name: '믿음', school: '4학년', color: '#C2410C' },

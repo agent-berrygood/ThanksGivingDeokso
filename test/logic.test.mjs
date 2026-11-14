@@ -92,22 +92,24 @@ test('퀴즈 채점: 맞힌 반만 true, 미제출은 false', () => {
   assert.equal(s['love-4'], false);
 });
 
-test('정의 창고: 누적 12개마다 이웃 마을, 1개 이상 낸 반만 자격', () => {
+test('정의 창고: 누적 24개마다 이웃 마을, 1개 이상 낸 반만 자격', () => {
   const gifts = all(1);
   gifts['love-4'] = 0;
   gifts['hope-1'] = 5;
-  const r = applyJustice(all(10), gifts, 10);
+  const r = applyJustice(all(10), gifts, 40);
   assert.equal(r.added, 15);
-  assert.equal(r.total, 25);
+  assert.equal(r.total, 55);
   assert.equal(r.villages, 2);
+  assert.equal(r.built, 1);
   assert.equal(r.perClass['hope-1'].after, 5);
   assert.equal(r.perClass['love-4'].eligible, false);
   assert.equal(r.perClass['faith-1'].eligible, true);
-  assert.equal(villagesOf(11), 0);
+  assert.equal(villagesOf(23), 0);
+  assert.equal(villagesOf(24), 1);
 });
 
-test('감사 농사 배율: 기본 ×2.0, 낸 반은 마을당 +0.1, 틀리면 ×1', () => {
-  assert.equal(farmMult(true, true, 3), 2.3);
+test('감사 농사 배율: 기본 ×2.0, 낸 반은 우리 반 마을당 +0.3, 틀리면 ×1', () => {
+  assert.equal(farmMult(true, true, 3), 2.9);
   assert.equal(farmMult(true, false, 3), 2);
   assert.equal(farmMult(false, true, 3), 1);
 });
@@ -169,9 +171,9 @@ test('참여 반: 시작 전에는 전체, 시작 후에는 확정 목록', () =
 });
 
 test('공동우승: 모든 반이 목표 이상일 때만', () => {
-  assert.equal(JOINT_GOAL, 200);
-  assert.equal(jointWin([{ fruit: 200 }, { fruit: 250 }]), true);
-  assert.equal(jointWin([{ fruit: 199 }, { fruit: 999 }]), false);
+  assert.equal(JOINT_GOAL, 300);
+  assert.equal(jointWin([{ fruit: 300 }, { fruit: 350 }]), true);
+  assert.equal(jointWin([{ fruit: 299 }, { fruit: 999 }]), false);
   assert.equal(jointWin([]), false);
 });
 
@@ -212,23 +214,23 @@ test('questionOf: 세트 지정, 없으면 기본 세트', () => {
 });
 
 test('정의 창고: 새 마을은 그 라운드에 낸 반만 얻는다 (늦게 내면 지난 마을은 없음)', () => {
-  // 1라운드: 1~11반 1개씩(사랑 4반 0) → 누적 11, 마을 0
-  const g1 = all(1);
+  // 1라운드: 1~11반 2개씩(사랑 4반 0) → 누적 22, 마을 0
+  const g1 = all(2);
   g1['love-4'] = 0;
   const r1 = applyJustice(all(10), g1, 0, ids, {});
   assert.equal(r1.villages, 0);
-  // 2라운드: 같은 반들이 1개씩 → 누적 22, 마을 1 → 1~11반만 얻음
+  // 2라운드: 같은 반들이 2개씩 → 누적 44, 마을 1 → 1~11반만 얻음
   const mine1 = Object.fromEntries(ids.map((id) => [id, r1.perClass[id].villages]));
   const r2 = applyJustice(all(10), g1, r1.total, ids, mine1);
   assert.equal(r2.built, 1);
   assert.equal(r2.perClass['faith-1'].villages, 1);
   assert.equal(r2.perClass['love-4'].villages, 0);
-  // 3라운드: 12개 반 모두 1개 → 누적 34, 마을 2 → 새 마을 1개는 모두 얻음
+  // 3라운드: 12개 반 모두 1개 → 누적 56, 마을 2 → 새 마을 1개는 모두 얻음
   const mine2 = Object.fromEntries(ids.map((id) => [id, r2.perClass[id].villages]));
   const r3 = applyJustice(all(10), all(1), r2.total, ids, mine2);
   assert.equal(r3.villages, 2);
   assert.equal(r3.perClass['faith-1'].villages, 2);
   assert.equal(r3.perClass['love-4'].villages, 1);
-  assert.equal(farmMult(true, true, r3.perClass['love-4'].villages), 2.1);
-  assert.equal(farmMult(true, true, r3.perClass['faith-1'].villages), 2.2);
+  assert.equal(farmMult(true, true, r3.perClass['love-4'].villages), 2.3);
+  assert.equal(farmMult(true, true, r3.perClass['faith-1'].villages), 2.6);
 });
