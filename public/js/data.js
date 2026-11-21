@@ -1,4 +1,4 @@
-// 감사 열매 농장 — 고정 데이터 (반, 인카운터, 문제)
+// 정의로운 감사 열매 농장 — 고정 데이터 (반, 인카운터, 문제)
 
 export const START_FRUIT = 10;
 export const ROUNDS = 8; // 계절 4 × 라운드 2 (계절은 라운드 이름으로만 쓴다)
@@ -111,7 +111,7 @@ export const questionsOf = (qset) => (QSET_BY_KEY[qset] || QUESTION_SETS[0]).que
 
 // 시작 전 설명·연습 슬라이드 (reveal: '다음'을 한 번 더 눌러 정답·결과를 공개하는 슬라이드)
 export const TUTORIAL = [
-  { key: 'welcome', title: '감사 열매 농장' },
+  { key: 'welcome', title: '정의로운 감사 열매 농장' },
   { key: 'round', title: '한 라운드는 이렇게' },
   { key: 'store', title: '감사 창고 계산' },
   { key: 'farm', title: '감사 농사와 남긴 열매' },

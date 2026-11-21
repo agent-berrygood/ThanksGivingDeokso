@@ -43,7 +43,7 @@ const user = await ready();
 // ===== 초기 세팅: 우리 반 고르기 =====
 function setupView() {
   const taken = (id) => id in claims && claims[id].uid !== user.uid;
-  $('#cname').textContent = '감사 열매 농장';
+  $('#cname').textContent = '정의로운 감사 열매 농장';
   $('#tphase').textContent = '반 선생님 초기 세팅';
   $('#tround').textContent = '';
   $('#tfruit').innerHTML = '';

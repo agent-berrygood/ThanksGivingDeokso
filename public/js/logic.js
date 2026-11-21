@@ -1,4 +1,4 @@
-// 감사 열매 농장 — 순수 게임 로직 (브라우저·node 공용, Firebase 의존 없음)
+// 정의로운 감사 열매 농장 — 순수 게임 로직 (브라우저·node 공용, Firebase 의존 없음)
 import {
   CLASSES, ENCOUNTERS, ENCOUNTER_BY_KEY, START_FRUIT, ROUNDS, JOINT_GOAL, questionsOf,
   FARM_MULT, JUSTICE_PER_VILLAGE, VILLAGE_BONUS,
